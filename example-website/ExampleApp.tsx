@@ -11,12 +11,13 @@ import {
   Play,
   Sliders,
   Sparkles,
+  Square,
   Volume2,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { soundEngine } from '../src/engine/audioEngine';
 import { generateToneJsCode } from '../src/engine/codeGenerator';
-import { EXAMPLE_SHOWCASE_SOUNDS } from './sounds';
+import { EXAMPLE_SHOWCASE_SOUNDS, TREASURE_CHEST_SOUND } from './sounds';
 
 const SLIDESHOW_STEPS = [
   {
@@ -83,10 +84,13 @@ export function ExampleApp() {
   const [slideIndex, setSlideIndex] = useState(0);
   const [copiedSlide, setCopiedSlide] = useState(false);
   const [copiedSound, setCopiedSound] = useState(false);
+  const [copiedChest, setCopiedChest] = useState(false);
+  const [showChestCode, setShowChestCode] = useState(false);
 
   const activeItem =
     EXAMPLE_SHOWCASE_SOUNDS.find((s) => s.id === activeId) ?? EXAMPLE_SHOWCASE_SOUNDS[0];
   const activeCode = generateToneJsCode(activeItem.recipe);
+  const chestCode = generateToneJsCode(TREASURE_CHEST_SOUND);
   const currentSlide = SLIDESHOW_STEPS[slideIndex];
 
   useEffect(() => {
@@ -340,6 +344,116 @@ export function ExampleApp() {
               </button>
             ))}
           </div>
+        </section>
+
+        {/* Grand Finale: Complex Multi-Stage Agent-Composed Example */}
+        <section
+          id="grand-finale"
+          className="surface-card"
+          style={{
+            padding: 'var(--space-lg)',
+            borderColor: 'var(--color-accent)',
+            backgroundColor: 'var(--color-secondary-bg)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px',
+          }}
+          aria-label="Grand Finale Complex Sound Example"
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <span className="layer-badge">GRAND FINALE • 19 LAYERS</span>
+              <span className="layer-badge">3.5s PROCEDURAL SEQUENCE</span>
+            </div>
+            <span style={{ fontSize: 'var(--text-caption)', color: 'var(--color-text-secondary)', fontWeight: 600 }}>
+              WebMCP Agent Showcase
+            </span>
+          </div>
+
+          <div>
+            <h2 style={{ margin: '0 0 6px 0', fontFamily: 'var(--font-display)', fontSize: 'var(--text-display-md)' }}>
+              Treasure Chest Opening &amp; Getting Item
+            </h2>
+            <p style={{ margin: 0, color: 'var(--color-text-secondary)', maxWidth: '76ch' }}>
+              The biggest multi-stage composition you can ask an AI agent to build using Sound Machine Generator:
+              a brass latch click &amp; wooden lid creak, followed by a 12-step rising chromatic suspense swell,
+              culminating in a 4-note triumphant brass &amp; FM-bell item fanfare—all in pure JavaScript.
+            </p>
+          </div>
+
+          <div className="playground-grid">
+            <div className="surface-card" style={{ padding: '14px' }}>
+              <strong style={{ fontSize: 'var(--text-sm)' }}>1. Latch &amp; Wooden Creak (0–360 ms)</strong>
+              <p style={{ margin: '4px 0 0 0', fontSize: 'var(--text-caption)', color: 'var(--color-text-secondary)' }}>
+                FM metallic transient + rising sawtooth bandpass glide.
+              </p>
+            </div>
+            <div className="surface-card" style={{ padding: '14px' }}>
+              <strong style={{ fontSize: 'var(--text-sm)' }}>2. Rising Suspense Swell (380–2030 ms)</strong>
+              <p style={{ margin: '4px 0 0 0', fontSize: 'var(--text-caption)', color: 'var(--color-text-secondary)' }}>
+                12 staggered chromatic triangle pulses opening a lowpass filter.
+              </p>
+            </div>
+            <div className="surface-card" style={{ padding: '14px' }}>
+              <strong style={{ fontSize: 'var(--text-sm)' }}>3. Item Fanfare &amp; Sparkle (2120–3500 ms)</strong>
+              <p style={{ margin: '4px 0 0 0', fontSize: 'var(--text-caption)', color: 'var(--color-text-secondary)' }}>
+                4-note ascending brass climax + C6 FM bell shimmer.
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <button
+              type="button"
+              className="btn-pill"
+              onPointerDown={() => void soundEngine.playRecipe(TREASURE_CHEST_SOUND)}
+            >
+              <Play size={16} fill="currentColor" />
+              <span>Play Treasure Chest Sequence</span>
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => soundEngine.stopAll()}
+            >
+              <Square size={14} />
+              <span>Stop</span>
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setShowChestCode((v) => !v)}
+            >
+              <Code2 size={15} />
+              <span>{showChestCode ? 'Hide 19-Layer Code' : 'Inspect 19-Layer Tone.js Code'}</span>
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={async () => {
+                await navigator.clipboard.writeText(chestCode);
+                setCopiedChest(true);
+                window.setTimeout(() => setCopiedChest(false), 1800);
+              }}
+            >
+              {copiedChest ? <Check size={15} /> : <Copy size={15} />}
+              <span>{copiedChest ? 'Copied Full Code!' : 'Copy Full Tone.js Code'}</span>
+            </button>
+          </div>
+
+          {showChestCode && (
+            <pre
+              className="code-pre"
+              style={{
+                backgroundColor: 'var(--color-code-bg)',
+                color: 'var(--color-code-text)',
+                borderRadius: 'var(--radius-sm)',
+                maxBlockSize: '360px',
+              }}
+            >
+              <code>{chestCode}</code>
+            </pre>
+          )}
         </section>
       </main>
 
