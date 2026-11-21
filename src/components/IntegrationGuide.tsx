@@ -1,16 +1,18 @@
-import { Bot, Check, Copy, Hand, MousePointerClick, Sparkles, Terminal } from 'lucide-react';
+import { Bot, Check, Copy, Cpu, ExternalLink, Hand, MousePointerClick, Sparkles, Terminal } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { soundEngine } from '../engine/audioEngine';
 import type { SoundRecipe } from '../engine/types';
+import type { WebMCPStatus } from '../engine/webmcp';
 
 interface IntegrationGuideProps {
   activeRecipe: SoundRecipe;
   allSounds: SoundRecipe[];
+  webMcpStatus: WebMCPStatus | null;
 }
 
 type SnippetTab = 'programmatic' | 'click' | 'swipe' | 'ai-agent';
 
-export function IntegrationGuide({ activeRecipe, allSounds }: IntegrationGuideProps) {
+export function IntegrationGuide({ activeRecipe, allSounds, webMcpStatus }: IntegrationGuideProps) {
   const [activeTab, setActiveTab] = useState<SnippetTab>('programmatic');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [swipeStatus, setSwipeStatus] = useState('Swipe or drag this card left/right');
@@ -137,13 +139,62 @@ npm install tone
 
   return (
     <div className="integration-layout">
-      <section className="hero-banner">
-        <h2 className="hero-title">Integrate &amp; Ship Procedural Audio</h2>
-        <p style={{ margin: 0, color: 'var(--color-text-secondary)', maxWidth: '72ch' }}>
-          Test how your code-generated sounds behave on real UI interactions—clicking, swiping cards,
-          and programmatic game events—then copy ready-to-use snippets or AI agent instructions for your app.
-        </p>
+      <section className="hero-banner" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+        <div>
+          <h2 className="hero-title">Integrate &amp; Ship Procedural Audio</h2>
+          <p style={{ margin: 0, color: 'var(--color-text-secondary)', maxWidth: '72ch' }}>
+            Test how your code-generated sounds behave on real UI interactions—clicking, swiping cards,
+            and programmatic game events—connect AI agents via WebMCP, or view our live showcase page.
+          </p>
+        </div>
+        <a
+          href="./website-example/"
+          className="btn-pill"
+          style={{ textDecoration: 'none' }}
+        >
+          <span>Open Example Website</span>
+          <ExternalLink size={16} />
+        </a>
       </section>
+
+      {webMcpStatus && (
+        <section className="surface-card" style={{ padding: 'var(--space-lg)' }} aria-label="WebMCP Agent Tools">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Cpu size={18} color="var(--color-accent)" />
+              <strong style={{ fontSize: 'var(--text-title-lg)' }}>WebMCP Agent Interface</strong>
+            </div>
+            <span className="layer-badge">
+              {webMcpStatus.supported
+                ? `Native ${webMcpStatus.apiSurface} Active`
+                : 'Bridge Ready (Enable chrome://flags/#enable-webmcp-testing for native Chrome WebMCP)'}
+            </span>
+          </div>
+          <p style={{ margin: '0 0 14px 0', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
+            AI agents connected to this page can compose new sounds (e.g. an explosion), tune layers, audition audio, and export Tone.js / Vanilla Web Audio code using these registered WebMCP tools:
+          </p>
+          <div className="playground-grid">
+            {webMcpStatus.tools.map((tool) => (
+              <div
+                key={tool.name}
+                style={{
+                  padding: '10px 12px',
+                  borderRadius: 'var(--radius-sm)',
+                  backgroundColor: 'var(--color-secondary-bg)',
+                  border: '1px solid var(--border-subtle)',
+                }}
+              >
+                <code style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', fontWeight: 600, color: 'var(--color-accent)' }}>
+                  {tool.name}
+                </code>
+                <p style={{ margin: '4px 0 0 0', fontSize: 'var(--text-caption)', color: 'var(--color-text-secondary)' }}>
+                  {tool.description}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section aria-label="Interactive trigger playground">
         <h3 className="section-title" style={{ marginBottom: '12px' }}>
