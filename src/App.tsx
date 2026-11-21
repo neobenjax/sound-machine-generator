@@ -6,6 +6,7 @@ import { PlaylistSidebar } from './components/PlaylistSidebar';
 import { StudioConsole } from './components/StudioConsole';
 import { soundEngine } from './engine/audioEngine';
 import type { Playlist, SoundRecipe } from './engine/types';
+import { registerSoundMachineWebMCP, type WebMCPStatus } from './engine/webmcp';
 import { BUILT_IN_PLAYLISTS, BUILT_IN_SAMPLES } from './samples';
 import {
   DEFAULT_CUSTOM_PLAYLIST,
@@ -51,6 +52,7 @@ export default function App() {
   const [draftRecipe, setDraftRecipe] = useState<SoundRecipe>(() => cloneRecipe(BUILT_IN_SAMPLES[1]));
   const [isLooping, setIsLooping] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [webMcpStatus, setWebMcpStatus] = useState<WebMCPStatus | null>(null);
   const loopTimerRef = useRef<number | null>(null);
 
   const showToast = useCallback((msg: string) => {
@@ -179,7 +181,7 @@ export default function App() {
     showToast(`Saved "${updatedSound.name}"`);
   };
 
-  const handleSaveAsNew = () => {
+  const handleSaveAsNew = useCallback((): SoundRecipe => {
     const newId = `custom-${Date.now()}`;
     const suffix = draftRecipe.isCustom ? ' (Remix)' : ' (Custom)';
     const newName = draftRecipe.name.endsWith(suffix) ? draftRecipe.name : `${draftRecipe.name}${suffix}`;
@@ -198,7 +200,8 @@ export default function App() {
     setDraftRecipe(cloneRecipe(newSound));
     setActivePlaylistId(targetPlaylistId);
     showToast(`Saved "${newName}" to localStorage`);
-  };
+    return newSound;
+  }, [customSounds, draftRecipe, showToast, targetPlaylistId]);
 
   const handleDeleteCustomSound = (id: string) => {
     const next = customSounds.filter((s) => s.id !== id);
@@ -222,11 +225,45 @@ export default function App() {
     showToast('Exported custom library JSON');
   };
 
-  const handleExportSingle = () => {
+  const handleExportSingle = useCallback(() => {
     const slug = draftRecipe.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
     downloadJsonFile(`${slug || 'sound'}.json`, draftRecipe);
     showToast(`Exported "${draftRecipe.name}"`);
+  }, [draftRecipe, showToast]);
+
+  const webMcpRef = useRef({
+    allPlaylists,
+    allSounds,
+    draftRecipe,
+    playCurrent,
+    handleSaveAsNew,
+    handleExportSingle,
+  });
+  webMcpRef.current = {
+    allPlaylists,
+    allSounds,
+    draftRecipe,
+    playCurrent,
+    handleSaveAsNew,
+    handleExportSingle,
   };
+
+  useEffect(() => {
+    const status = registerSoundMachineWebMCP({
+      getPlaylists: () => webMcpRef.current.allPlaylists,
+      getSounds: () => webMcpRef.current.allSounds,
+      getActiveRecipe: () => webMcpRef.current.draftRecipe,
+      loadRecipe: (recipe) => {
+        setBaseRecipe(cloneRecipe(recipe));
+        setDraftRecipe(cloneRecipe(recipe));
+        setActiveView('studio');
+      },
+      playActive: () => webMcpRef.current.playCurrent(),
+      saveAsNew: () => webMcpRef.current.handleSaveAsNew(),
+      downloadActiveJson: () => webMcpRef.current.handleExportSingle(),
+    });
+    setWebMcpStatus(status);
+  }, []);
 
   const handleImportLibrary = async (file: File) => {
     try {
@@ -352,7 +389,11 @@ export default function App() {
             </div>
           </>
         ) : (
-          <IntegrationGuide activeRecipe={draftRecipe} allSounds={allSounds} />
+          <IntegrationGuide
+            activeRecipe={draftRecipe}
+            allSounds={allSounds}
+            webMcpStatus={webMcpStatus}
+          />
         )}
       </main>
 
