@@ -1,0 +1,63 @@
+/* Design System Tokens — Synchronized with random-seed-design.md */
+:root {
+  /* Colors */
+  --color-primary: #F4FAFA;
+  --color-primary-bg: #F4FAFA;
+  --color-secondary-bg: #E5F3F5;
+  --color-surface: #FFFFFF;
+  --color-surface-card: #FFFFFF;
+  --color-text-primary: #0F172A;
+  --color-text-secondary: #365D63;
+  --color-text-muted: #5C848A;
+  --color-accent: #0C8DA1;
+  --color-accent-hover: #097283;
+  --color-secondary: #C2D3D6;
+  --color-slate-steel: #C2D3D6;
+  --color-on-primary: #FFFFFF;
+  --color-on-dark: #FFFFFF;
+  --color-code-bg: #0F172A;
+  --color-code-surface: #1E293B;
+  --color-code-text: #E2E8F0;
+  --color-danger: #B91C1C;
+  --color-danger-bg: #FEF2F2;
+  --color-success: #0F766E;
+  --color-success-bg: #CCFBF1;
+
+  /* Borders */
+  --border-subtle: rgba(0, 0, 0, 0.10);
+  --border-accent: rgba(84, 221, 242, 0.45);
+
+  /* Typography */
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --text-display-lg: clamp(1.5rem, 1.2rem + 1.4vw, 2.5rem);
+  --text-display-md: clamp(1.25rem, 1.1rem + 0.8vw, 2rem);
+  --text-title-lg: 1.25rem;
+  --text-body: 1rem;
+  --text-sm: 0.875rem;
+  --text-caption: 0.75rem;
+
+  /* Radii */
+  --radius-none: 0px;
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-full: 9999px;
+
+  /* Spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-xxl: 48px;
+
+  /* Layout */
+  --nav-height: 72px;
+  --max-width: 1440px;
+  --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-elevated: 0 8px 24px rgba(15, 23, 42, 0.08);
+}
