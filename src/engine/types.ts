@@ -33,6 +33,9 @@ export interface SoundLayer {
   pitchCurve: PitchCurve;
   harmonicity: number;
   modulationIndex: number;
+  fmDecayMs?: number; // 10 - 600 ms: modulation index decay for bell/marimba transients
+  unisonVoices?: number; // 1 - 3 detuned voices for warmth
+  detuneCents?: number; // 0 - 50 cents spread across unison voices
   envelope: EnvelopeConfig;
   filter: FilterConfig;
   gain: number; // 0.0 - 1.0
@@ -46,6 +49,8 @@ export interface SoundRecipe {
   description: string;
   tags: string[];
   masterVolumeDb: number; // -24 to 0
+  reverbMix?: number; // 0.0 - 0.6 procedural stereo reverb send
+  reverbDecaySec?: number; // 0.15 - 2.5s impulse response tail
   layers: SoundLayer[];
   isCustom?: boolean;
   updatedAt?: string;

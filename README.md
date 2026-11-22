@@ -3,18 +3,23 @@
 A browser-based procedural sound composer, **WebMCP** agent studio, and Web Audio code generator built with **Tone.js**, **React**, and the **Native Web Audio API**.
 
 - **Live Studio**: https://neobenjax.github.io/sound-machine-generator/
-- **Example Showcase Website**: https://neobenjax.github.io/sound-machine-generator/website-example/
+- **Example Showcase Website (Sound Machine Arcade)**: https://neobenjax.github.io/sound-machine-generator/website-example/
 
 ## Features
 
-- **Composer Console**: Layer `tone` (Sine, Triangle, Sawtooth, Square), `noise` (White, Pink, Brown), and `fm` synthesizers with ADSR envelopes, filter sweeps, stereo panning, and a real-time oscilloscope.
+- **Composer Console**: Layer `tone` (Sine, Triangle, Sawtooth, Square), `noise` (White, Pink, Brown), and `fm` synthesizers with:
+  - **Unison / Detune (`1x–3x` voices, `0–50 ct` spread)** for lush stereo warmth.
+  - **Dynamic FM Modulation Decay (`10–600 ms`)** for glassy marimba, chime, and bell transients.
+  - **Procedural Stereo Reverb (`0%–60%` mix, `0.15s–2.50s` tail)** using an algorithmically generated impulse response (`ConvolverNode` / `Tone.Convolver`)—zero external audio files.
+  - **Master Glue Compressor & Limiter** (`DynamicsCompressorNode` / `Tone.Compressor` + `Tone.Limiter`) plus a real-time oscilloscope.
 - **Built-in Sample Playlists (`src/samples/`)**:
-  - **Card Table Foley**: Card Slide, Card Snap/Placement, Card Flip, Card Thud, Riffle Shuffle, Card Fan, Chip Tap, Win Cascade.
-  - **Game & UI Feedback**: Winning Fanfare, Error, Failing, Sparkles, Cheers, Level Up, Coin Pickup, Soft UI Tick.
-- **Code Output**: Generates copy-ready **Tone.js**, **Vanilla Web Audio API**, and **JSON** code instructions—no audio files needed.
+  - **Modern App & Chimes (`modern.ts`)**: Correct Answer Chime (Duolingo-style), Streak Milestone Bloom, Lesson Complete Fanfare, Gentle Nudge / Try Again, XP Gem Collect, Glassy Toggle Pop, Notification Bloom, Level Up Shimmer.
+  - **Card Table Foley (`cards.ts`)**: Card Slide, Card Snap/Placement, Card Flip, Card Thud, Riffle Shuffle, Card Fan, Chip Tap, Win Cascade.
+  - **Game & UI Feedback (`game.ts`)**: Winning Fanfare, Error, Failing, Sparkles, Cheers, Level Up, Coin Pickup, Soft UI Tick.
+- **1:1 Code Output**: Generates copy-ready **Tone.js**, zero-dependency **Vanilla Web Audio API** (including native FM synthesis, pink/brown noise buffers, unison detune, compressor, and procedural `ConvolverNode` reverb), and **JSON** recipes.
 - **LocalStorage & JSON Export/Import**: Persist custom playlists and remixes in `localStorage` and export/import `.json` bundles.
-- **WebMCP Agent Ready**: Exposes `list_sound_presets`, `load_sound_preset`, `compose_sound`, `tune_sound_layer`, `play_current_sound`, `export_current_sound`, and `save_current_sound` via `document.modelContext.registerTool()`.
-- **Example Website (`example-website/`)**: Interactive showcase featuring procedural Explosions, Blowing Wind, Sirens, Fanfares, Trumpets, a Short Piano Sonata, and a 5-step developer slideshow.
+- **WebMCP Agent Ready**: Exposes `list_sound_presets`, `load_sound_preset`, `compose_sound`, `tune_sound_layer`, `play_current_sound`, `export_current_sound`, and `save_current_sound` via `navigator.modelContext.registerTool()`—including `reverbMix`, `reverbDecaySec`, `unisonVoices`, `detuneCents`, and `fmDecayMs`.
+- **Example Website (`example-website/` & `website-example/`)**: Videogame-inspired **Sound Machine Arcade** showcase featuring an interactive Sound Deck, 3 WebMCP videogame prompt quests (Power-Up Orb, Retro Boss Laser, Healing Fountain Checkpoint) with live playable outputs, a 5-step developer slideshow, and a 19-layer Treasure Chest grand finale.
 
 ## How to Install
 
@@ -36,7 +41,7 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173/sound-machine-generator/` for the Composer Studio, or `http://localhost:5173/sound-machine-generator/website-example/` for the Example Website.
+Open `http://localhost:5173/sound-machine-generator/` for the Composer Studio, or `http://localhost:5173/sound-machine-generator/website-example/` for the **Sound Machine Arcade** Example Website.
 
 ### Production Build & Preview
 
@@ -49,7 +54,7 @@ npm run preview
 ### Testing WebMCP Locally in Chrome
 1. Open `chrome://flags/#enable-webmcp-testing` in Chrome and set **WebMCP for testing** to **Enabled**.
 2. Relaunch Chrome and open the Composer Studio.
-3. Connected WebMCP agents can now discover and invoke the registered sound tools directly in the active browser tab.
+3. Connected WebMCP agents can now discover and invoke the registered sound tools directly in the active browser tab, including composing sounds with `unisonVoices`, `detuneCents`, `fmDecayMs`, `reverbMix`, and `reverbDecaySec`.
 
 ## Contributing
 

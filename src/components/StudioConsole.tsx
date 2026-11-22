@@ -238,21 +238,59 @@ export function StudioConsole({
             <span>Stop</span>
           </button>
 
-          <div style={{ marginInlineStart: 'auto', display: 'flex', alignItems: 'center', gap: '10px', minInlineSize: '180px' }}>
-            <span className="control-label" style={{ whiteSpace: 'nowrap' }}>
-              Master: <strong className="control-value">{recipe.masterVolumeDb} dB</strong>
-            </span>
-            <input
-              type="range"
-              min={-24}
-              max={0}
-              step={1}
-              value={recipe.masterVolumeDb}
-              onChange={(e) =>
-                onUpdateRecipe((prev) => ({ ...prev, masterVolumeDb: Number(e.target.value) }))
-              }
-              aria-label="Master volume in decibels"
-            />
+          <div style={{ marginInlineStart: 'auto', display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minInlineSize: '155px' }}>
+              <span className="control-label" style={{ whiteSpace: 'nowrap' }}>
+                Reverb: <strong className="control-value">{Math.round((recipe.reverbMix ?? 0) * 100)}%</strong>
+              </span>
+              <input
+                type="range"
+                min={0}
+                max={0.6}
+                step={0.02}
+                value={recipe.reverbMix ?? 0}
+                onChange={(e) =>
+                  onUpdateRecipe((prev) => ({ ...prev, reverbMix: Number(e.target.value) }))
+                }
+                aria-label="Procedural stereo reverb mix"
+              />
+            </div>
+
+            {(recipe.reverbMix ?? 0) > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minInlineSize: '150px' }}>
+                <span className="control-label" style={{ whiteSpace: 'nowrap' }}>
+                  Tail: <strong className="control-value">{(recipe.reverbDecaySec ?? 0.65).toFixed(2)}s</strong>
+                </span>
+                <input
+                  type="range"
+                  min={0.15}
+                  max={2.5}
+                  step={0.05}
+                  value={recipe.reverbDecaySec ?? 0.65}
+                  onChange={(e) =>
+                    onUpdateRecipe((prev) => ({ ...prev, reverbDecaySec: Number(e.target.value) }))
+                  }
+                  aria-label="Reverb tail decay in seconds"
+                />
+              </div>
+            )}
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minInlineSize: '170px' }}>
+              <span className="control-label" style={{ whiteSpace: 'nowrap' }}>
+                Master: <strong className="control-value">{recipe.masterVolumeDb} dB</strong>
+              </span>
+              <input
+                type="range"
+                min={-24}
+                max={0}
+                step={1}
+                value={recipe.masterVolumeDb}
+                onChange={(e) =>
+                  onUpdateRecipe((prev) => ({ ...prev, masterVolumeDb: Number(e.target.value) }))
+                }
+                aria-label="Master volume in decibels"
+              />
+            </div>
           </div>
         </div>
 
@@ -486,6 +524,57 @@ export function StudioConsole({
                       onChange={(e) => updateLayer(layer.id, { modulationIndex: Number(e.target.value) })}
                     />
                   </div>
+
+                  <div className="control-group">
+                    <label className="control-label">
+                      <span>FM Mod Decay</span>
+                      <span className="control-value">{Math.round(layer.fmDecayMs ?? 120)} ms</span>
+                    </label>
+                    <input
+                      type="range"
+                      min={10}
+                      max={600}
+                      step={5}
+                      value={layer.fmDecayMs ?? 120}
+                      onChange={(e) => updateLayer(layer.id, { fmDecayMs: Number(e.target.value) })}
+                    />
+                  </div>
+                </>
+              )}
+
+              {layer.type !== 'noise' && (
+                <>
+                  <div className="control-group">
+                    <label className="control-label">
+                      <span>Unison Voices</span>
+                      <span className="control-value">{layer.unisonVoices ?? 1}x</span>
+                    </label>
+                    <input
+                      type="range"
+                      min={1}
+                      max={3}
+                      step={1}
+                      value={layer.unisonVoices ?? 1}
+                      onChange={(e) => updateLayer(layer.id, { unisonVoices: Number(e.target.value) })}
+                    />
+                  </div>
+
+                  {(layer.unisonVoices ?? 1) > 1 && (
+                    <div className="control-group">
+                      <label className="control-label">
+                        <span>Detune Spread</span>
+                        <span className="control-value">{Math.round(layer.detuneCents ?? 10)} ct</span>
+                      </label>
+                      <input
+                        type="range"
+                        min={0}
+                        max={50}
+                        step={1}
+                        value={layer.detuneCents ?? 10}
+                        onChange={(e) => updateLayer(layer.id, { detuneCents: Number(e.target.value) })}
+                      />
+                    </div>
+                  )}
                 </>
               )}
 
