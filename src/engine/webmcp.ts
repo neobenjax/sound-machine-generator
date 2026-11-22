@@ -64,6 +64,9 @@ function normalizeLayer(raw: Partial<SoundLayer>, index: number): SoundLayer {
     pitchCurve: raw.pitchCurve || 'exponential',
     harmonicity: Number(raw.harmonicity ?? 2),
     modulationIndex: Number(raw.modulationIndex ?? 3),
+    fmDecayMs: raw.fmDecayMs !== undefined ? Number(raw.fmDecayMs) : undefined,
+    unisonVoices: raw.unisonVoices !== undefined ? Number(raw.unisonVoices) : 1,
+    detuneCents: raw.detuneCents !== undefined ? Number(raw.detuneCents) : 0,
     envelope: {
       attack: Number(raw.envelope?.attack ?? 0.004),
       decay: Number(raw.envelope?.decay ?? 0.12),
@@ -86,7 +89,7 @@ export function registerSoundMachineWebMCP(handlers: SoundMachineBridgeHandlers)
     {
       name: 'list_sound_presets',
       description:
-        'List all available sound playlists and sound recipes (built-in Card Table Foley, Game & UI Feedback, and custom saved sounds).',
+        'List all available sound playlists and sound recipes (built-in Modern App & Chimes, Card Table Foley, Game & UI Feedback, and custom saved sounds).',
       inputSchema: { type: 'object', properties: {} },
       annotations: { readOnlyHint: true },
       execute: () => ({
@@ -133,6 +136,8 @@ export function registerSoundMachineWebMCP(handlers: SoundMachineBridgeHandlers)
           name: { type: 'string', description: 'Name of the new sound.' },
           description: { type: 'string', description: 'Short description of the sound.' },
           masterVolumeDb: { type: 'number', description: 'Master volume in dB (-24 to 0).' },
+          reverbMix: { type: 'number', description: 'Procedural stereo reverb mix (0.0 to 0.6).' },
+          reverbDecaySec: { type: 'number', description: 'Reverb tail decay in seconds (0.15 to 2.5).' },
           layers: {
             type: 'array',
             description: 'Array of synthesis layers (tone, noise, or fm).',
@@ -147,8 +152,16 @@ export function registerSoundMachineWebMCP(handlers: SoundMachineBridgeHandlers)
                 durationMs: { type: 'number' },
                 frequency: { type: 'number' },
                 frequencyEnd: { type: 'number' },
+                pitchCurve: { type: 'string', enum: ['exponential', 'linear'] },
+                harmonicity: { type: 'number' },
+                modulationIndex: { type: 'number' },
+                fmDecayMs: { type: 'number' },
+                unisonVoices: { type: 'number' },
+                detuneCents: { type: 'number' },
                 gain: { type: 'number' },
                 pan: { type: 'number' },
+                envelope: { type: 'object' },
+                filter: { type: 'object' },
               },
             },
           },
@@ -164,6 +177,8 @@ export function registerSoundMachineWebMCP(handlers: SoundMachineBridgeHandlers)
           description: String(args.description || 'Composed via WebMCP agent tool.'),
           tags: ['webmcp', 'agent-composed'],
           masterVolumeDb: Number(args.masterVolumeDb ?? -2),
+          reverbMix: args.reverbMix !== undefined ? Number(args.reverbMix) : 0,
+          reverbDecaySec: args.reverbDecaySec !== undefined ? Number(args.reverbDecaySec) : 0.65,
           layers: rawLayers.length > 0 ? rawLayers.map(normalizeLayer) : [normalizeLayer({}, 0)],
           isCustom: true,
         };
@@ -177,19 +192,32 @@ export function registerSoundMachineWebMCP(handlers: SoundMachineBridgeHandlers)
     },
     {
       name: 'tune_sound_layer',
-      description: 'Tune parameters of a layer (by 0-based index) or masterVolumeDb on the active console sound.',
+      description:
+        'Tune parameters of a layer (by 0-based index) or recipe-level masterVolumeDb, reverbMix, and reverbDecaySec on the active console sound.',
       inputSchema: {
         type: 'object',
         properties: {
           layerIndex: { type: 'number', description: '0-based index of the layer to modify.' },
           masterVolumeDb: { type: 'number', description: 'Optional new master volume (-24 to 0).' },
-          patch: { type: 'object', description: 'Partial layer properties to update.' },
+          reverbMix: { type: 'number', description: 'Optional procedural stereo reverb mix (0.0 to 0.6).' },
+          reverbDecaySec: { type: 'number', description: 'Optional reverb tail decay in seconds (0.15 to 2.5).' },
+          patch: {
+            type: 'object',
+            description:
+              'Partial layer properties to update (e.g., frequency, frequencyEnd, durationMs, delayMs, gain, pan, harmonicity, modulationIndex, fmDecayMs, unisonVoices, detuneCents, envelope, filter).',
+          },
         },
       },
       execute: (args) => {
         const current = JSON.parse(JSON.stringify(handlers.getActiveRecipe())) as SoundRecipe;
         if (typeof args.masterVolumeDb === 'number') {
           current.masterVolumeDb = args.masterVolumeDb;
+        }
+        if (typeof args.reverbMix === 'number') {
+          current.reverbMix = Math.max(0, Math.min(0.6, args.reverbMix));
+        }
+        if (typeof args.reverbDecaySec === 'number') {
+          current.reverbDecaySec = Math.max(0.15, Math.min(2.5, args.reverbDecaySec));
         }
         if (typeof args.layerIndex === 'number' && current.layers[args.layerIndex] && args.patch) {
           const idx = args.layerIndex;
