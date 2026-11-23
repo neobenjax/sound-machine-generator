@@ -8,24 +8,22 @@ import {
   ChevronRight,
   Code2,
   Copy,
-  Cpu,
   Gamepad2,
   Play,
   Sliders,
-  Sparkles,
   Square,
   Terminal,
   Trophy,
   Volume2,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { soundEngine } from '../src/engine/audioEngine';
-import { generateToneJsCode, generateVanillaWebAudioCode } from '../src/engine/codeGenerator';
 import {
   EXAMPLE_SHOWCASE_SOUNDS,
   MCP_VIDEOGAME_QUEST_SOUNDS,
   TREASURE_CHEST_SOUND,
 } from './sounds';
+import { soundEngine } from '../src/engine/audioEngine';
+import { generateToneJsCode, generateVanillaWebAudioCode } from '../src/engine/codeGenerator';
 
 type CodeFormat = 'webaudio' | 'tone';
 
@@ -34,8 +32,8 @@ const SLIDESHOW_STEPS = [
     step: 1,
     title: 'Connect an AI Agent via WebMCP (or Compose Manually)',
     summary:
-      'Open Sound Machine Generator in Chrome with WebMCP enabled, or use the Studio Console directly. An AI agent can call compose_sound (with unisonVoices, fmDecayMs, and reverbMix) and export_current_sound on demand.',
-    code: `// WebMCP Agent Workflow on Sound Machine Generator
+      'Open Sound Machine v2 in Chrome with WebMCP enabled, or use the Studio Console directly. An AI agent can call compose_sound (with unisonVoices, fmDecayMs, and reverbMix) and export_current_sound on demand.',
+    code: `// WebMCP Agent Workflow on Sound Machine v2
 // 1. Agent calls compose_sound({ name: "Power-Up Orb", reverbMix: 0.32, layers: [...] })
 // 2. Agent calls play_current_sound() to audition in the browser
 // 3. Agent calls export_current_sound({ download: false })
@@ -62,7 +60,7 @@ npm install tone`,
     step: 4,
     title: 'Drop In Your Generated Sound Function',
     summary:
-      'Paste the exported function from Sound Machine Generator directly into your game or app. No .mp3 downloads, no audio sprite loading, and instant zero-latency playback.',
+      'Paste the exported function from Sound Machine v2 directly into your game or app. No .mp3 downloads, no audio sprite loading, and instant zero-latency playback.',
     code: `export async function playCorrectAnswerChime() {
   const ctx = new (window.AudioContext || window.webkitAudioContext)();
   const comp = ctx.createDynamicsCompressor();
@@ -133,6 +131,8 @@ export function ExampleApp() {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA') return;
       if (e.key === 'ArrowRight') {
         setSlideIndex((i) => Math.min(SLIDESHOW_STEPS.length - 1, i + 1));
       } else if (e.key === 'ArrowLeft') {
@@ -156,653 +156,543 @@ export function ExampleApp() {
   };
 
   return (
-    <div className="app-shell">
-      <header className="global-header">
-        <div className="header-inner">
-          <div className="brand">
-            <div className="brand-mark" aria-hidden="true">
-              <Gamepad2 size={22} />
+    <div className="flex min-h-dvh flex-col bg-[#0F172A] text-[#F8FAFC]">
+      {/* Global Header */}
+      <header className="sticky top-0 z-40 border-b border-[#334155] bg-[#0F172A]/95 backdrop-blur-md">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
+          <div className="flex items-center gap-3">
+            <div
+              className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-[#22C55E]/40 bg-[#22C55E]/15 text-[#22C55E]"
+              aria-hidden="true"
+            >
+              <Gamepad2 size={20} />
             </div>
             <div>
-              <h1 className="brand-title">Sound Machine Arcade</h1>
-              <p className="brand-subtitle">Procedural Game Audio &amp; WebMCP Showcase</p>
+              <div className="flex items-center gap-2">
+                <h1 className="font-display text-base font-bold tracking-tight text-[#F8FAFC] sm:text-lg">
+                  Sound Machine Arcade
+                </h1>
+                <span className="rounded border border-[#22C55E]/40 bg-[#22C55E]/15 px-1.5 py-0.5 font-display text-[11px] font-semibold text-[#22C55E]">
+                  v2
+                </span>
+              </div>
+              <p className="text-xs text-[#94A3B8]">Procedural Game Audio &amp; WebMCP Showcase</p>
             </div>
           </div>
 
-          <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <span className="status-pill ready" title="Last triggered sound">
-              <AudioWaveform size={14} />
-              <span>{lastPlayedLabel}</span>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span
+              className="inline-flex items-center gap-2 rounded-full border border-[#334155] bg-[#1B2336] px-3 py-1.5 font-display text-xs font-medium text-[#22C55E]"
+              title="Last triggered sound"
+            >
+              <AudioWaveform size={14} aria-hidden="true" />
+              <span className="max-w-[180px] truncate">{lastPlayedLabel}</span>
             </span>
-            <a href="../" className="btn-primary" style={{ textDecoration: 'none' }}>
-              <ArrowLeft size={16} />
+            <a
+              href="../"
+              className="flex min-h-9 items-center gap-1.5 rounded-lg bg-[#22C55E] px-3.5 py-1.5 text-sm font-semibold text-[#0F172A] transition-opacity duration-150 hover:opacity-90"
+            >
+              <ArrowLeft size={15} aria-hidden="true" />
               <span>Open Studio Console</span>
             </a>
           </div>
         </div>
       </header>
 
-      <main className="main-container" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-        {/* Videogame HUD Hero */}
-        <section className="hero-banner" style={{ position: 'relative', overflow: 'hidden' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '12px' }}>
-            <span className="layer-badge">
-              <Sparkles size={13} /> 0 AUDIO FILES • 100% CODE
-            </span>
-            <span className="layer-badge">
-              <Cpu size={13} /> NATIVE WEB AUDIO + TONE.JS
-            </span>
-            <span className="layer-badge">
-              <Bot size={13} /> WEBMCP AGENT READY
-            </span>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px', alignItems: 'center' }}>
-            <div>
-              <h2 className="hero-title" style={{ marginBottom: '10px' }}>
-                Level Up Your App With Pure Code Audio.
-              </h2>
-              <p style={{ margin: '0 0 18px 0', color: 'var(--color-text-secondary)', maxWidth: '64ch' }}>
-                Synthesize Duolingo-style chimes, arcade lasers, explosions, and RPG fanfares in real
-                time—powered by procedural FM synthesis, unison detune, and stereo reverb with zero
-                MP3 or WAV assets.
-              </p>
-              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                <a href="#effects-board" className="btn-pill" style={{ textDecoration: 'none' }}>
-                  <Volume2 size={16} />
-                  <span>Play Sound Deck</span>
-                </a>
-                <a href="#agent-mcp-quests" className="btn-secondary" style={{ textDecoration: 'none' }}>
-                  <Bot size={16} />
-                  <span>Agent MCP Quests</span>
-                </a>
-                <a href="#developer-slideshow" className="btn-secondary" style={{ textDecoration: 'none' }}>
-                  <Sliders size={16} />
-                  <span>5-Step Guide</span>
-                </a>
-              </div>
-            </div>
-
-            {/* HUD Stat Card */}
-            <div
-              className="surface-card"
-              style={{
-                padding: '16px',
-                backgroundColor: 'var(--color-code-bg)',
-                color: 'var(--color-on-dark)',
-                borderColor: 'var(--border-accent)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '10px',
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-caption)', color: '#54DDF2', fontWeight: 700 }}>
-                  SYNTH ENGINE HUD
-                </span>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-caption)', color: '#94A3B8' }}>
-                  v2.0 HYBRID
-                </span>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontFamily: 'var(--font-mono)', fontSize: 'var(--text-caption)' }}>
-                <div style={{ padding: '8px 10px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--color-code-surface)' }}>
-                  <div style={{ color: '#94A3B8' }}>POLYPHONY</div>
-                  <div style={{ fontWeight: 700, fontSize: 'var(--text-sm)', color: '#FFFFFF' }}>Up to 3x Unison</div>
-                </div>
-                <div style={{ padding: '8px 10px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--color-code-surface)' }}>
-                  <div style={{ color: '#94A3B8' }}>SPACE</div>
-                  <div style={{ fontWeight: 700, fontSize: 'var(--text-sm)', color: '#FFFFFF' }}>Procedural Reverb</div>
-                </div>
-                <div style={{ padding: '8px 10px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--color-code-surface)' }}>
-                  <div style={{ color: '#94A3B8' }}>TRANSIENTS</div>
-                  <div style={{ fontWeight: 700, fontSize: 'var(--text-sm)', color: '#FFFFFF' }}>Dynamic FM Decay</div>
-                </div>
-                <div style={{ padding: '8px 10px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--color-code-surface)' }}>
-                  <div style={{ color: '#94A3B8' }}>EXPORT</div>
-                  <div style={{ fontWeight: 700, fontSize: 'var(--text-sm)', color: '#54DDF2' }}>1:1 Web Audio API</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Live Sound Effects Board */}
-        <section id="effects-board" aria-label="Live Sound Effects Showcase">
-          <div className="section-header" style={{ marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
-            <div>
-              <h2 className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Gamepad2 size={20} color="#0C8DA1" />
-                <span>Arcade Sound Deck</span>
-              </h2>
-              <p style={{ margin: '2px 0 0 0', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
-                Trigger any procedural sound effect below to hear it live and inspect its zero-asset code.
-              </p>
-            </div>
-            <a href="../" className="btn-secondary" style={{ textDecoration: 'none', fontSize: 'var(--text-caption)' }}>
-              <span>Customize in Studio</span>
-              <ArrowRight size={14} />
-            </a>
-          </div>
-
-          <div className="playground-grid">
-            {EXAMPLE_SHOWCASE_SOUNDS.map((item) => {
-              const isSelected = item.id === activeId;
-              return (
-                <article
-                  key={item.id}
-                  className="surface-card trigger-card"
-                  style={
-                    isSelected
-                      ? {
-                          borderColor: 'var(--color-accent)',
-                          backgroundColor: 'var(--color-secondary-bg)',
-                          boxShadow: 'var(--shadow-elevated)',
-                        }
-                      : undefined
-                  }
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-                    <strong style={{ fontSize: '1.05rem' }}>{item.label}</strong>
-                    <span className="layer-badge">{item.badge}</span>
-                  </div>
-                  <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
-                    {item.subtitle}
-                  </p>
-                  <button
-                    type="button"
-                    className="btn-pill"
-                    style={{ marginTop: 'auto' }}
-                    onPointerDown={() => void handlePlayShowcase(item)}
-                  >
-                    <Play size={15} fill="currentColor" />
-                    <span>Trigger {item.label}</span>
-                  </button>
-                </article>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* Active Effect Code Preview */}
-        <section className="surface-card" style={{ overflow: 'hidden' }} aria-label="Active effect code">
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '12px 16px',
-              backgroundColor: 'var(--color-code-surface)',
-              color: 'var(--color-on-dark)',
-              flexWrap: 'wrap',
-              gap: '8px',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Code2 size={16} color="#54DDF2" />
-              <strong>Generated Code: {activeItem.label}</strong>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <div className="code-tabs" role="tablist" aria-label="Showcase code format">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={activeCodeMode === 'webaudio'}
-                  className={`code-tab ${activeCodeMode === 'webaudio' ? 'active' : ''}`}
-                  onClick={() => setActiveCodeMode('webaudio')}
-                >
-                  Web Audio API
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={activeCodeMode === 'tone'}
-                  className={`code-tab ${activeCodeMode === 'tone' ? 'active' : ''}`}
-                  onClick={() => setActiveCodeMode('tone')}
-                >
-                  Tone.js
-                </button>
-              </div>
-
-              <button
-                type="button"
-                className="code-tab active"
-                onClick={async () => {
-                  await navigator.clipboard.writeText(activeCode);
-                  setCopiedSound(true);
-                  window.setTimeout(() => setCopiedSound(false), 1800);
-                }}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-              >
-                {copiedSound ? <Check size={14} /> : <Copy size={14} />}
-                <span>{copiedSound ? 'Copied!' : 'Copy Code'}</span>
-              </button>
-            </div>
-          </div>
-          <pre
-            className="code-pre"
-            style={{
-              backgroundColor: 'var(--color-code-bg)',
-              color: 'var(--color-code-text)',
-              maxBlockSize: '280px',
-            }}
-          >
-            <code>{activeCode}</code>
-          </pre>
-        </section>
-
-        {/* Use with Agents through WebMCP: 3 Videogame Prompt Quests */}
-        <section
-          id="agent-mcp-quests"
-          className="surface-card"
-          style={{ padding: 'var(--space-lg)', display: 'flex', flexDirection: 'column', gap: '20px' }}
-          aria-label="Use with AI Agents through WebMCP"
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                <span className="layer-badge">
-                  <Bot size={13} /> USE WITH AGENTS THROUGH WEBMCP
-                </span>
-                <span className="layer-badge">3 VIDEOGAME PROMPT QUESTS</span>
-              </div>
-              <h2 className="section-title">Prompt an AI Agent, Audition &amp; Export Real Game Audio</h2>
-              <p style={{ margin: '4px 0 0 0', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', maxWidth: '76ch' }}>
-                Connect any WebMCP-compatible AI agent to the Sound Machine Studio tab. The agent calls{' '}
-                <code>compose_sound</code> with unison detune, FM decay, and procedural reverb, auditions it with{' '}
-                <code>play_current_sound</code>, and returns production code via <code>export_current_sound</code>.
-              </p>
-            </div>
-          </div>
-
-          <div className="playground-grid">
-            {MCP_VIDEOGAME_QUEST_SOUNDS.map((quest) => {
-              const isSelected = quest.id === questId;
-              return (
-                <article
-                  key={quest.id}
-                  className="surface-card"
-                  style={{
-                    padding: '16px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '12px',
-                    borderColor: isSelected ? 'var(--color-accent)' : 'var(--border-subtle)',
-                    backgroundColor: isSelected ? 'var(--color-secondary-bg)' : 'var(--color-surface)',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    <span className="layer-badge">{quest.questTag}</span>
-                  </div>
-
-                  <strong style={{ fontSize: '1.05rem' }}>{quest.title}</strong>
-
-                  <div
-                    style={{
-                      padding: '10px 12px',
-                      borderRadius: 'var(--radius-sm)',
-                      backgroundColor: 'var(--color-code-bg)',
-                      color: 'var(--color-code-text)',
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: '0.78rem',
-                      lineHeight: 1.5,
-                    }}
-                  >
-                    <div style={{ color: '#54DDF2', fontWeight: 700, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                      <Terminal size={12} /> AGENT PROMPT
-                    </div>
-                    “{quest.prompt}”
-                  </div>
-
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                    {quest.highlights.map((tag) => (
-                      <span
-                        key={tag}
-                        style={{
-                          fontSize: 'var(--text-caption)',
-                          fontWeight: 600,
-                          padding: '2px 8px',
-                          borderRadius: 'var(--radius-full)',
-                          backgroundColor: 'var(--color-primary-bg)',
-                          border: '1px solid var(--border-subtle)',
-                          color: 'var(--color-text-secondary)',
-                        }}
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '8px', marginTop: 'auto', flexWrap: 'wrap' }}>
-                    <button
-                      type="button"
-                      className="btn-pill"
-                      style={{ flex: '1 1 auto' }}
-                      onPointerDown={() => void handlePlayQuest(quest)}
-                    >
-                      <Play size={14} fill="currentColor" />
-                      <span>Play Sample Output</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-secondary"
-                      onClick={async () => {
-                        await navigator.clipboard.writeText(quest.prompt);
-                        setCopiedPromptId(quest.id);
-                        window.setTimeout(() => setCopiedPromptId(null), 1800);
-                      }}
-                      title="Copy prompt for your AI agent"
-                    >
-                      {copiedPromptId === quest.id ? <Check size={14} /> : <Copy size={14} />}
-                      <span>{copiedPromptId === quest.id ? 'Copied' : 'Copy Prompt'}</span>
-                    </button>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-
-          {/* Selected Agent Quest Output Inspector */}
-          <div className="surface-card" style={{ overflow: 'hidden' }}>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '12px 16px',
-                backgroundColor: 'var(--color-code-surface)',
-                color: 'var(--color-on-dark)',
-                flexWrap: 'wrap',
-                gap: '8px',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Bot size={16} color="#54DDF2" />
-                <strong>Agent Output: {activeQuest.title}</strong>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                <div className="code-tabs" role="tablist" aria-label="Agent quest output format">
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={questView === 'webaudio'}
-                    className={`code-tab ${questView === 'webaudio' ? 'active' : ''}`}
-                    onClick={() => setQuestView('webaudio')}
-                  >
-                    Web Audio API
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={questView === 'tone'}
-                    className={`code-tab ${questView === 'tone' ? 'active' : ''}`}
-                    onClick={() => setQuestView('tone')}
-                  >
-                    Tone.js
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={questView === 'mcp'}
-                    className={`code-tab ${questView === 'mcp' ? 'active' : ''}`}
-                    onClick={() => setQuestView('mcp')}
-                  >
-                    WebMCP Tool Call
-                  </button>
-                </div>
-
-                <button
-                  type="button"
-                  className="code-tab active"
-                  onClick={async () => {
-                    await navigator.clipboard.writeText(activeQuestCode);
-                    setCopiedQuestCode(true);
-                    window.setTimeout(() => setCopiedQuestCode(false), 1800);
-                  }}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                >
-                  {copiedQuestCode ? <Check size={14} /> : <Copy size={14} />}
-                  <span>{copiedQuestCode ? 'Copied!' : 'Copy'}</span>
-                </button>
-              </div>
-            </div>
-            <pre
-              className="code-pre"
-              style={{
-                backgroundColor: 'var(--color-code-bg)',
-                color: 'var(--color-code-text)',
-                maxBlockSize: '280px',
-              }}
-            >
-              <code>{activeQuestCode}</code>
-            </pre>
-          </div>
-        </section>
-
-        {/* Step-by-Step Developer Guide Slideshow */}
-        <section id="developer-slideshow" className="surface-card" style={{ padding: 'var(--space-lg)' }} aria-label="Developer Step-by-Step Slideshow">
-          <div className="section-header" style={{ marginBottom: '16px', flexWrap: 'wrap' }}>
-            <div>
-              <h2 className="section-title">Mission Briefing: 5-Step Developer Guide</h2>
-              <p style={{ margin: '4px 0 0 0', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
-                Mission {currentSlide.step} of {SLIDESHOW_STEPS.length} — Use Prev/Next or Arrow keys
-              </p>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <button
-                type="button"
-                className="btn-secondary"
-                disabled={slideIndex === 0}
-                onClick={() => setSlideIndex((i) => Math.max(0, i - 1))}
-              >
-                <ChevronLeft size={16} />
-                <span>Prev</span>
-              </button>
-              <button
-                type="button"
-                className="btn-primary"
-                disabled={slideIndex === SLIDESHOW_STEPS.length - 1}
-                onClick={() => setSlideIndex((i) => Math.min(SLIDESHOW_STEPS.length - 1, i + 1))}
-              >
-                <span>Next</span>
-                <ChevronRight size={16} />
-              </button>
-            </div>
-          </div>
-
-          <div
-            style={{
-              padding: 'var(--space-lg)',
-              borderRadius: 'var(--radius-md)',
-              backgroundColor: 'var(--color-secondary-bg)',
-              border: '1px solid var(--border-accent)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '14px',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
-              <span className="layer-badge">MISSION 0{currentSlide.step}</span>
-              <button
-                type="button"
-                className="btn-secondary"
-                style={{ minBlockSize: '32px', padding: '4px 10px', fontSize: 'var(--text-caption)' }}
-                onClick={async () => {
-                  await navigator.clipboard.writeText(currentSlide.code);
-                  setCopiedSlide(true);
-                  window.setTimeout(() => setCopiedSlide(false), 1800);
-                }}
-              >
-                {copiedSlide ? <Check size={13} /> : <Copy size={13} />}
-                <span>{copiedSlide ? 'Copied' : 'Copy Step Code'}</span>
-              </button>
-            </div>
-
-            <h3 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: '1.5rem' }}>
-              {currentSlide.title}
-            </h3>
-            <p style={{ margin: 0, color: 'var(--color-text-secondary)' }}>{currentSlide.summary}</p>
-
-            <pre
-              className="code-pre"
-              style={{
-                backgroundColor: 'var(--color-code-bg)',
-                color: 'var(--color-code-text)',
-                borderRadius: 'var(--radius-sm)',
-              }}
-            >
-              <code>{currentSlide.code}</code>
-            </pre>
-          </div>
-
-          {/* Slide Dots */}
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginTop: '16px', flexWrap: 'wrap' }}>
-            {SLIDESHOW_STEPS.map((s, idx) => (
-              <button
-                key={s.step}
-                type="button"
-                className={`playlist-chip ${idx === slideIndex ? 'active' : ''}`}
-                style={{ flex: '0 0 auto', padding: '6px 14px' }}
-                onClick={() => setSlideIndex(idx)}
-              >
-                Mission {s.step}
-              </button>
-            ))}
-          </div>
-        </section>
-
-        {/* Grand Finale: Complex Multi-Stage Agent-Composed Example */}
-        <section
-          id="grand-finale"
-          className="surface-card"
-          style={{
-            padding: 'var(--space-lg)',
-            borderColor: 'var(--color-accent)',
-            backgroundColor: 'var(--color-secondary-bg)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '16px',
-          }}
-          aria-label="Grand Finale Complex Sound Example"
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <span className="layer-badge">
-                <Trophy size={13} /> BOSS LOOT • 19 LAYERS
-              </span>
-              <span className="layer-badge">3.5s PROCEDURAL SEQUENCE</span>
-            </div>
-            <span style={{ fontSize: 'var(--text-caption)', color: 'var(--color-text-secondary)', fontWeight: 600 }}>
-              WebMCP Grand Finale
-            </span>
-          </div>
-
+      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-10 px-4 py-8 sm:px-6">
+        {/* Split Hero */}
+        <section className="grid grid-cols-1 items-center gap-6 rounded-2xl border border-[#334155] bg-[#1B2336] p-6 lg:grid-cols-[1.2fr_0.8fr] lg:p-8">
           <div>
-            <h2 style={{ margin: '0 0 6px 0', fontFamily: 'var(--font-display)', fontSize: 'var(--text-display-md)' }}>
-              Treasure Chest Opening &amp; Getting Item
+            <h2 className="font-display text-2xl font-bold tracking-tight text-balance text-[#F8FAFC] sm:text-4xl">
+              Level Up Your App With Pure Code Audio.
             </h2>
-            <p style={{ margin: 0, color: 'var(--color-text-secondary)', maxWidth: '76ch' }}>
-              A multi-stage RPG sequence composed with Sound Machine Generator: a brass latch click
-              &amp; wooden lid creak, followed by a 12-step rising chromatic suspense swell, culminating
-              in a 4-note triumphant brass &amp; FM-bell item fanfare—all in pure JavaScript.
+            <p className="mt-3 max-w-2xl text-base leading-relaxed text-pretty text-[#CBD5E1]">
+              Synthesize UI chimes, arcade lasers, explosions, and RPG fanfares in real time.
+              Powered by procedural FM synthesis, unison detune, and stereo reverb with zero MP3 or
+              WAV files.
+            </p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <a
+                href="#effects-board"
+                className="flex min-h-10 items-center gap-2 rounded-lg bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#0F172A] transition-opacity duration-150 hover:opacity-90"
+              >
+                <Volume2 size={16} aria-hidden="true" />
+                <span>Play Sound Deck</span>
+              </a>
+              <a
+                href="#agent-mcp-quests"
+                className="flex min-h-10 items-center gap-2 rounded-lg border border-[#475569] bg-[#272F42] px-4 py-2 text-sm font-medium text-[#F8FAFC] transition-colors duration-150 hover:border-[#22C55E] hover:text-[#22C55E]"
+              >
+                <Bot size={16} aria-hidden="true" />
+                <span>Agent MCP Quests</span>
+              </a>
+              <a
+                href="#developer-slideshow"
+                className="flex min-h-10 items-center gap-2 rounded-lg border border-[#475569] bg-[#0F172A] px-4 py-2 text-sm font-medium text-[#CBD5E1] transition-colors duration-150 hover:border-[#64748B] hover:text-[#F8FAFC]"
+              >
+                <Sliders size={16} aria-hidden="true" />
+                <span>5-Step Guide</span>
+              </a>
+            </div>
+          </div>
+
+          {/* Interactive Engine Telemetry Card */}
+          <div className="rounded-xl border border-[#475569] bg-[#0F172A] p-5">
+            <div className="flex items-center justify-between border-b border-[#334155] pb-3">
+              <span className="font-display text-xs font-semibold text-[#22C55E]">
+                SYNTH ENGINE TELEMETRY
+              </span>
+              <span className="font-display text-xs text-[#94A3B8]">v2.0 HYBRID</span>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="rounded-lg border border-[#334155] bg-[#1B2336] p-3">
+                <div className="text-xs text-[#94A3B8]">Polyphony</div>
+                <div className="mt-1 font-display text-sm font-bold tabular-nums text-[#F8FAFC]">
+                  3x Unison
+                </div>
+              </div>
+              <div className="rounded-lg border border-[#334155] bg-[#1B2336] p-3">
+                <div className="text-xs text-[#94A3B8]">Asset Weight</div>
+                <div className="mt-1 font-display text-sm font-bold tabular-nums text-[#22C55E]">
+                  0 KB Audio
+                </div>
+              </div>
+              <div className="rounded-lg border border-[#334155] bg-[#1B2336] p-3">
+                <div className="text-xs text-[#94A3B8]">FM Synthesis</div>
+                <div className="mt-1 font-display text-sm font-bold text-[#F8FAFC]">
+                  Native Carrier
+                </div>
+              </div>
+              <div className="rounded-lg border border-[#334155] bg-[#1B2336] p-3">
+                <div className="text-xs text-[#94A3B8]">Spatial FX</div>
+                <div className="mt-1 font-display text-sm font-bold text-[#F8FAFC]">
+                  Stereo Reverb
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => void handlePlayShowcase(EXAMPLE_SHOWCASE_SOUNDS[0])}
+              className="mt-4 flex min-h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#22C55E]/50 bg-[#22C55E]/15 px-4 py-2 text-sm font-semibold text-[#22C55E] transition-colors duration-150 hover:bg-[#22C55E] hover:text-[#0F172A]"
+            >
+              <Play size={15} aria-hidden="true" />
+              <span>Test Sub-Bass Explosion</span>
+            </button>
+          </div>
+        </section>
+
+        {/* Sound Deck + Live Code Inspector */}
+        <section id="effects-board" className="scroll-mt-20">
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="font-display text-xl font-bold text-[#F8FAFC]">
+                Interactive Sound Deck
+              </h2>
+              <p className="mt-1 text-sm text-[#CBD5E1]">
+                Tap any pad to audition its synthesis layers and inspect the generated code.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => soundEngine.stopAll()}
+              className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-[#475569] bg-[#1B2336] px-3 py-1.5 text-xs font-semibold text-[#F8FAFC] transition-colors duration-150 hover:border-[#EF4444] hover:text-[#EF4444]"
+            >
+              <Square size={13} aria-hidden="true" />
+              <span>Stop All</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1.05fr_0.95fr]">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {EXAMPLE_SHOWCASE_SOUNDS.map((item) => {
+                const isActive = item.id === activeId;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => void handlePlayShowcase(item)}
+                    className={`flex cursor-pointer flex-col justify-between rounded-xl border p-4 text-left transition-colors duration-150 ${
+                      isActive
+                        ? 'border-[#22C55E] bg-[#22C55E]/10'
+                        : 'border-[#334155] bg-[#1B2336] hover:border-[#475569] hover:bg-[#272F42]/70'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="font-display text-sm font-bold text-[#F8FAFC]">
+                        {item.label}
+                      </span>
+                      <span
+                        className={`flex size-8 shrink-0 items-center justify-center rounded-md ${
+                          isActive
+                            ? 'bg-[#22C55E] text-[#0F172A]'
+                            : 'bg-[#272F42] text-[#22C55E]'
+                        }`}
+                        aria-hidden="true"
+                      >
+                        <Play size={14} />
+                      </span>
+                    </div>
+                    <p className="mt-2 text-xs leading-relaxed text-[#CBD5E1]">{item.subtitle}</p>
+                    <span className="mt-3 inline-block font-display text-[11px] font-medium text-[#94A3B8]">
+                      {item.badge}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex flex-col overflow-hidden rounded-xl border border-[#334155] bg-[#1B2336]">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#334155] px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <Code2 size={16} className="text-[#22C55E]" aria-hidden="true" />
+                  <span className="font-display text-sm font-semibold text-[#F8FAFC]">
+                    {activeItem.label}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <div className="flex rounded-md border border-[#334155] bg-[#0F172A] p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setActiveCodeMode('webaudio')}
+                      className={`cursor-pointer rounded px-2.5 py-1 text-xs font-medium ${
+                        activeCodeMode === 'webaudio'
+                          ? 'bg-[#22C55E] font-semibold text-[#0F172A]'
+                          : 'text-[#CBD5E1] hover:text-[#F8FAFC]'
+                      }`}
+                    >
+                      Web Audio
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveCodeMode('tone')}
+                      className={`cursor-pointer rounded px-2.5 py-1 text-xs font-medium ${
+                        activeCodeMode === 'tone'
+                          ? 'bg-[#22C55E] font-semibold text-[#0F172A]'
+                          : 'text-[#CBD5E1] hover:text-[#F8FAFC]'
+                      }`}
+                    >
+                      Tone.js
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await navigator.clipboard.writeText(activeCode);
+                      setCopiedSound(true);
+                      window.setTimeout(() => setCopiedSound(false), 1600);
+                    }}
+                    className="flex min-h-8 cursor-pointer items-center gap-1 rounded-md border border-[#475569] bg-[#272F42] px-2.5 py-1 text-xs font-semibold text-[#F8FAFC] hover:border-[#22C55E] hover:text-[#22C55E]"
+                  >
+                    {copiedSound ? (
+                      <Check size={13} aria-hidden="true" />
+                    ) : (
+                      <Copy size={13} aria-hidden="true" />
+                    )}
+                    <span>{copiedSound ? 'Copied' : 'Copy'}</span>
+                  </button>
+                </div>
+              </div>
+
+              <pre className="max-h-[420px] flex-1 overflow-auto bg-[#0F172A] p-4 font-display text-xs leading-relaxed text-[#E2E8F0]">
+                <code>{activeCode}</code>
+              </pre>
+            </div>
+          </div>
+        </section>
+
+        {/* Agent WebMCP Quests */}
+        <section id="agent-mcp-quests" className="scroll-mt-20">
+          <div className="mb-4">
+            <h2 className="font-display text-xl font-bold text-[#F8FAFC]">
+              WebMCP Agent Quests
+            </h2>
+            <p className="mt-1 text-sm text-[#CBD5E1]">
+              Example prompts an AI agent can run against the Studio Console&apos;s{' '}
+              <code className="font-display text-xs text-[#22C55E]">compose_sound</code> tool.
             </p>
           </div>
 
-          <div className="playground-grid">
-            <div className="surface-card" style={{ padding: '14px' }}>
-              <strong style={{ fontSize: 'var(--text-sm)' }}>1. Latch &amp; Wooden Creak (0–360 ms)</strong>
-              <p style={{ margin: '4px 0 0 0', fontSize: 'var(--text-caption)', color: 'var(--color-text-secondary)' }}>
-                FM metallic transient + rising sawtooth bandpass glide.
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_1fr]">
+            <div className="flex flex-col gap-3">
+              {MCP_VIDEOGAME_QUEST_SOUNDS.map((quest) => {
+                const selected = quest.id === questId;
+                return (
+                  <div
+                    key={quest.id}
+                    className={`rounded-xl border p-4 transition-colors duration-150 ${
+                      selected
+                        ? 'border-[#22C55E] bg-[#22C55E]/10'
+                        : 'border-[#334155] bg-[#1B2336]'
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <span className="font-display text-xs font-semibold text-[#22C55E]">
+                          {quest.questTag}
+                        </span>
+                        <h3 className="font-display text-base font-bold text-[#F8FAFC]">
+                          {quest.title}
+                        </h3>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void handlePlayQuest(quest)}
+                        className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg bg-[#22C55E] px-3 py-1.5 text-xs font-semibold text-[#0F172A] hover:opacity-90"
+                      >
+                        <Play size={13} aria-hidden="true" />
+                        <span>Play</span>
+                      </button>
+                    </div>
+
+                    <p className="mt-2 rounded-lg border border-[#334155] bg-[#0F172A] p-2.5 text-xs leading-relaxed text-[#CBD5E1]">
+                      &ldquo;{quest.prompt}&rdquo;
+                    </p>
+
+                    <div className="mt-2.5 flex items-center justify-between gap-2">
+                      <span className="text-xs text-[#94A3B8]">
+                        {quest.recipe.layers.length} layers • Reverb{' '}
+                        {Math.round((quest.recipe.reverbMix ?? 0) * 100)}%
+                      </span>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await navigator.clipboard.writeText(quest.prompt);
+                          setCopiedPromptId(quest.id);
+                          window.setTimeout(() => setCopiedPromptId(null), 1600);
+                        }}
+                        className="flex cursor-pointer items-center gap-1 text-xs font-semibold text-[#CBD5E1] hover:text-[#22C55E]"
+                      >
+                        {copiedPromptId === quest.id ? (
+                          <Check size={13} aria-hidden="true" />
+                        ) : (
+                          <Copy size={13} aria-hidden="true" />
+                        )}
+                        <span>{copiedPromptId === quest.id ? 'Prompt Copied' : 'Copy Prompt'}</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex flex-col overflow-hidden rounded-xl border border-[#334155] bg-[#1B2336]">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#334155] px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <Terminal size={16} className="text-[#22C55E]" aria-hidden="true" />
+                  <span className="font-display text-sm font-semibold text-[#F8FAFC]">
+                    {activeQuest.title}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <div className="flex rounded-md border border-[#334155] bg-[#0F172A] p-0.5">
+                    {(
+                      [
+                        { id: 'webaudio', label: 'Web Audio' },
+                        { id: 'tone', label: 'Tone.js' },
+                        { id: 'mcp', label: 'MCP Tool' },
+                      ] as const
+                    ).map((tab) => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setQuestView(tab.id)}
+                        className={`cursor-pointer rounded px-2 py-1 text-xs font-medium ${
+                          questView === tab.id
+                            ? 'bg-[#22C55E] font-semibold text-[#0F172A]'
+                            : 'text-[#CBD5E1] hover:text-[#F8FAFC]'
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await navigator.clipboard.writeText(activeQuestCode);
+                      setCopiedQuestCode(true);
+                      window.setTimeout(() => setCopiedQuestCode(false), 1600);
+                    }}
+                    className="flex min-h-8 cursor-pointer items-center gap-1 rounded-md border border-[#475569] bg-[#272F42] px-2.5 py-1 text-xs font-semibold text-[#F8FAFC] hover:border-[#22C55E] hover:text-[#22C55E]"
+                  >
+                    {copiedQuestCode ? (
+                      <Check size={13} aria-hidden="true" />
+                    ) : (
+                      <Copy size={13} aria-hidden="true" />
+                    )}
+                    <span>{copiedQuestCode ? 'Copied' : 'Copy'}</span>
+                  </button>
+                </div>
+              </div>
+
+              <pre className="max-h-[480px] flex-1 overflow-auto bg-[#0F172A] p-4 font-display text-xs leading-relaxed text-[#E2E8F0]">
+                <code>{activeQuestCode}</code>
+              </pre>
+            </div>
+          </div>
+        </section>
+
+        {/* 5-Step Developer Slideshow */}
+        <section
+          id="developer-slideshow"
+          className="scroll-mt-20 rounded-2xl border border-[#334155] bg-[#1B2336] p-6"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#334155] pb-4">
+            <div>
+              <h2 className="font-display text-xl font-bold text-[#F8FAFC]">
+                5-Step Integration Walkthrough
+              </h2>
+              <p className="mt-1 text-sm text-[#CBD5E1]">
+                Use Left/Right arrow keys or the stepper buttons to walk through shipping audio.
               </p>
             </div>
-            <div className="surface-card" style={{ padding: '14px' }}>
-              <strong style={{ fontSize: 'var(--text-sm)' }}>2. Rising Suspense Swell (380–2030 ms)</strong>
-              <p style={{ margin: '4px 0 0 0', fontSize: 'var(--text-caption)', color: 'var(--color-text-secondary)' }}>
-                12 staggered chromatic triangle pulses opening a lowpass filter.
-              </p>
-            </div>
-            <div className="surface-card" style={{ padding: '14px' }}>
-              <strong style={{ fontSize: 'var(--text-sm)' }}>3. Item Fanfare &amp; Sparkle (2120–3500 ms)</strong>
-              <p style={{ margin: '4px 0 0 0', fontSize: 'var(--text-caption)', color: 'var(--color-text-secondary)' }}>
-                4-note ascending brass climax + C6 FM bell shimmer.
-              </p>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setSlideIndex((i) => Math.max(0, i - 1))}
+                disabled={slideIndex === 0}
+                aria-label="Previous step"
+                className="flex size-9 cursor-pointer items-center justify-center rounded-lg border border-[#475569] bg-[#272F42] text-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ChevronLeft size={16} aria-hidden="true" />
+              </button>
+              <span className="font-display text-xs font-semibold tabular-nums text-[#CBD5E1]">
+                Step {currentSlide.step} / {SLIDESHOW_STEPS.length}
+              </span>
+              <button
+                type="button"
+                onClick={() => setSlideIndex((i) => Math.min(SLIDESHOW_STEPS.length - 1, i + 1))}
+                disabled={slideIndex === SLIDESHOW_STEPS.length - 1}
+                aria-label="Next step"
+                className="flex size-9 cursor-pointer items-center justify-center rounded-lg border border-[#475569] bg-[#272F42] text-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ChevronRight size={16} aria-hidden="true" />
+              </button>
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-            <button
-              type="button"
-              className="btn-pill"
-              onPointerDown={() => {
-                setLastPlayedLabel('Treasure Chest Sequence');
-                void soundEngine.playRecipe(TREASURE_CHEST_SOUND);
-              }}
-            >
-              <Play size={16} fill="currentColor" />
-              <span>Open Treasure Chest</span>
-            </button>
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => soundEngine.stopAll()}
-            >
-              <Square size={14} />
-              <span>Stop</span>
-            </button>
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => setShowChestCode((v) => !v)}
-            >
-              <Code2 size={15} />
-              <span>{showChestCode ? 'Hide 19-Layer Code' : 'Inspect 19-Layer Code'}</span>
-            </button>
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={async () => {
-                await navigator.clipboard.writeText(chestCode);
-                setCopiedChest(true);
-                window.setTimeout(() => setCopiedChest(false), 1800);
-              }}
-            >
-              {copiedChest ? <Check size={15} /> : <Copy size={15} />}
-              <span>{copiedChest ? 'Copied Full Code!' : 'Copy Full Tone.js Code'}</span>
-            </button>
+          <div className="mt-5">
+            <h3 className="font-display text-lg font-bold text-[#22C55E]">
+              {currentSlide.step}. {currentSlide.title}
+            </h3>
+            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-[#CBD5E1]">
+              {currentSlide.summary}
+            </p>
+
+            <div className="mt-4 overflow-hidden rounded-xl border border-[#334155] bg-[#0F172A]">
+              <div className="flex items-center justify-between border-b border-[#334155] px-4 py-2">
+                <span className="font-display text-xs text-[#94A3B8]">Snippet</span>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(currentSlide.code);
+                    setCopiedSlide(true);
+                    window.setTimeout(() => setCopiedSlide(false), 1600);
+                  }}
+                  className="flex cursor-pointer items-center gap-1 text-xs font-semibold text-[#CBD5E1] hover:text-[#22C55E]"
+                >
+                  {copiedSlide ? (
+                    <Check size={13} aria-hidden="true" />
+                  ) : (
+                    <Copy size={13} aria-hidden="true" />
+                  )}
+                  <span>{copiedSlide ? 'Copied' : 'Copy'}</span>
+                </button>
+              </div>
+              <pre className="overflow-x-auto p-4 font-display text-xs leading-relaxed text-[#E2E8F0]">
+                <code>{currentSlide.code}</code>
+              </pre>
+            </div>
+          </div>
+        </section>
+
+        {/* Live RPG Treasure Chest Demo */}
+        <section className="rounded-2xl border border-[#22C55E]/40 bg-[#1B2336] p-6">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-[#22C55E]/40 bg-[#22C55E]/15 text-[#22C55E]">
+                <Trophy size={22} aria-hidden="true" />
+              </div>
+              <div>
+                <h2 className="font-display text-lg font-bold text-[#F8FAFC]">
+                  Live In-Game Event: Treasure Chest Unlocked
+                </h2>
+                <p className="mt-1 text-sm text-[#CBD5E1]">
+                  Multi-layered FM fanfare + sparkle arpeggio + stereo reverb synthesized on click.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setLastPlayedLabel('Treasure Chest Fanfare');
+                  void soundEngine.playRecipe(TREASURE_CHEST_SOUND);
+                }}
+                className="flex min-h-10 cursor-pointer items-center gap-2 rounded-lg bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#0F172A] hover:opacity-90"
+              >
+                <Play size={15} aria-hidden="true" />
+                <span>Open Treasure Chest</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowChestCode((v) => !v)}
+                className="flex min-h-10 cursor-pointer items-center gap-1.5 rounded-lg border border-[#475569] bg-[#272F42] px-3.5 py-2 text-sm font-medium text-[#F8FAFC] hover:border-[#22C55E]"
+              >
+                <Code2 size={15} aria-hidden="true" />
+                <span>{showChestCode ? 'Hide Code' : 'View Code'}</span>
+              </button>
+            </div>
           </div>
 
           {showChestCode && (
-            <pre
-              className="code-pre"
-              style={{
-                backgroundColor: 'var(--color-code-bg)',
-                color: 'var(--color-code-text)',
-                borderRadius: 'var(--radius-sm)',
-                maxBlockSize: '360px',
-              }}
-            >
-              <code>{chestCode}</code>
-            </pre>
+            <div className="mt-4 overflow-hidden rounded-xl border border-[#334155] bg-[#0F172A]">
+              <div className="flex items-center justify-between border-b border-[#334155] px-4 py-2">
+                <span className="font-display text-xs text-[#94A3B8]">Tone.js Function</span>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(chestCode);
+                    setCopiedChest(true);
+                    window.setTimeout(() => setCopiedChest(false), 1600);
+                  }}
+                  className="flex cursor-pointer items-center gap-1 text-xs font-semibold text-[#CBD5E1] hover:text-[#22C55E]"
+                >
+                  {copiedChest ? (
+                    <Check size={13} aria-hidden="true" />
+                  ) : (
+                    <Copy size={13} aria-hidden="true" />
+                  )}
+                  <span>{copiedChest ? 'Copied' : 'Copy'}</span>
+                </button>
+              </div>
+              <pre className="max-h-72 overflow-auto p-4 font-display text-xs leading-relaxed text-[#E2E8F0]">
+                <code>{chestCode}</code>
+              </pre>
+            </div>
           )}
         </section>
-      </main>
 
-      <footer
-        style={{
-          borderTop: '1px solid var(--border-subtle)',
-          padding: '24px 16px',
-          textAlign: 'center',
-          color: 'var(--color-text-secondary)',
-          fontSize: 'var(--text-sm)',
-        }}
-      >
-        Built with Sound Machine Generator •{' '}
-        <a href="../" style={{ color: 'var(--color-accent)', fontWeight: 600 }}>
-          Launch Composer Studio <ArrowRight size={13} style={{ verticalAlign: 'middle' }} />
-        </a>
-      </footer>
+        <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-[#334155] pt-6 text-xs text-[#94A3B8]">
+          <span>Sound Machine v2 — Procedural Web Audio &amp; WebMCP</span>
+          <a
+            href="../"
+            className="inline-flex items-center gap-1 font-semibold text-[#22C55E] hover:underline"
+          >
+            <span>Launch Composer Studio</span>
+            <ArrowRight size={13} aria-hidden="true" />
+          </a>
+        </footer>
+      </main>
     </div>
   );
 }

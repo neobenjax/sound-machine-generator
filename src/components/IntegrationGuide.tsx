@@ -1,4 +1,13 @@
-import { Bot, Check, Copy, Cpu, ExternalLink, Hand, MousePointerClick, Sparkles, Terminal } from 'lucide-react';
+import {
+  Bot,
+  Check,
+  Copy,
+  Cpu,
+  ExternalLink,
+  Hand,
+  MousePointerClick,
+  Terminal,
+} from 'lucide-react';
 import { useRef, useState } from 'react';
 import { soundEngine } from '../engine/audioEngine';
 import type { SoundRecipe } from '../engine/types';
@@ -12,7 +21,11 @@ interface IntegrationGuideProps {
 
 type SnippetTab = 'programmatic' | 'click' | 'swipe' | 'ai-agent';
 
-export function IntegrationGuide({ activeRecipe, allSounds, webMcpStatus }: IntegrationGuideProps) {
+export function IntegrationGuide({
+  activeRecipe,
+  allSounds,
+  webMcpStatus,
+}: IntegrationGuideProps) {
   const [activeTab, setActiveTab] = useState<SnippetTab>('programmatic');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [swipeStatus, setSwipeStatus] = useState('Swipe or drag this card left/right');
@@ -41,7 +54,7 @@ export function IntegrationGuide({ activeRecipe, allSounds, webMcpStatus }: Inte
     if (Math.abs(dx) > 22 && !slidePlayedRef.current) {
       slidePlayedRef.current = true;
       void soundEngine.playRecipe(findSample('card-slide-felt'));
-      setSwipeStatus('Sliding card...');
+      setSwipeStatus('Sliding card…');
     }
   };
 
@@ -63,9 +76,9 @@ export function IntegrationGuide({ activeRecipe, allSounds, webMcpStatus }: Inte
     programmatic: `import * as Tone from 'tone';
 import { playCardSnapPlacement } from './sounds/cardSnap';
 
-// Programmatic trigger inside game logic (e.g., Solitaire foundation check)
+// Programmatic trigger inside game logic
 export async function onMoveValidated(isValidMove: boolean) {
-  await Tone.start(); // Safe no-op if already unlocked by an earlier user gesture
+  await Tone.start(); // Safe no-op if already unlocked
 
   if (isValidMove) {
     await playCardSnapPlacement();
@@ -77,7 +90,6 @@ export async function onMoveValidated(isValidMove: boolean) {
 const dealButton = document.querySelector('#deal-btn');
 
 dealButton.addEventListener('pointerdown', async () => {
-  // Using pointerdown gives 0ms perceived latency on both mouse & mobile touch
   await playCardFlip();
 });
 
@@ -99,269 +111,208 @@ let playedSlide = false;
 cardEl.addEventListener('pointerdown', (e) => {
   startX = e.clientX;
   playedSlide = false;
-  cardEl.setPointerCapture(e.pointerId);
 });
 
 cardEl.addEventListener('pointermove', (e) => {
   if (startX === null) return;
   if (Math.abs(e.clientX - startX) > 20 && !playedSlide) {
     playedSlide = true;
-    playCardSlideFelt(); // Plays once when drag begins
+    playCardSlide();
   }
 });
 
 cardEl.addEventListener('pointerup', () => {
-  if (startX === null) return;
   startX = null;
-  playCardSnapPlacement(); // Plays on release
+  playCardSnapPlacement();
 });`,
-    'ai-agent': `# AI Agent & Developer Implementation Guide
+    'ai-agent': `// WebMCP Agent Prompt Example:
+// "Using the Sound Machine WebMCP tools on this page:
+//  1. Call compose_sound to create a crisp sci-fi shield recharge sound
+//  2. Call play_current_sound so I can hear it
+//  3. Call export_current_sound to get the Tone.js & Web Audio code"
 
-## 1. Install Tone.js (or use the Zero-Dependency Web Audio tab)
-\`\`\`bash
-npm install tone
-\`\`\`
-
-## 2. Create a Sound Registry (\`src/audio/soundRegistry.ts\`)
-- Export your sound functions from Sound Machine Generator (Tone.js tab or Vanilla Web Audio tab),
-  OR import your exported \`sound-machine-library.json\` and pass recipes to \`soundEngine.playRecipe(recipe)\`.
-
-## 3. Respect Browser & Mobile Safari Autoplay Policy
-- NEVER instantiate or play audio on page load.
-- Always call \`await Tone.start()\` (or \`await audioCtx.resume()\`) inside a direct user gesture
-  (\`pointerdown\`, \`click\`, or \`keydown\`).
-
-## 4. Wire Triggers
-- **Immediate tactile UI**: bind to \`onPointerDown\` (faster than \`onClick\` on touchscreens).
-- **Card drag & drop**: trigger \`card-slide-felt\` once on drag threshold (>20px) and \`card-snap-place\` on \`pointerup\`.
-- **Game state events**: call \`playWinningFanfare()\` or \`playErrorInvalidMove()\` from state transitions.`,
+// Registered WebMCP Tools on this Console:
+// - list_sound_presets
+// - load_sound_preset
+// - compose_sound
+// - tune_sound_layer
+// - play_current_sound
+// - export_current_sound
+// - save_current_sound`,
   };
 
   return (
-    <div className="integration-layout">
-      <section className="hero-banner" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-        <div>
-          <h2 className="hero-title">Integrate &amp; Ship Procedural Audio</h2>
-          <p style={{ margin: 0, color: 'var(--color-text-secondary)', maxWidth: '72ch' }}>
-            Test how your code-generated sounds behave on real UI interactions—clicking, swiping cards,
-            and programmatic game events—connect AI agents via WebMCP, or view our live showcase page.
-          </p>
+    <div className="mx-auto flex max-w-5xl flex-col gap-6">
+      {/* Hero Banner */}
+      <section className="rounded-xl border border-[#334155] bg-[#1B2336] p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="max-w-2xl">
+            <h2 className="font-display text-xl font-bold text-[#F8FAFC] sm:text-2xl">
+              Integrate Procedural Sound &amp; WebMCP Agents
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-[#CBD5E1]">
+              Every sound you craft in Sound Machine v2 compiles to zero-dependency Vanilla Web
+              Audio API or Tone.js code. Browser AI agents can also connect directly via WebMCP to
+              compose, audition, tune, and export sounds live.
+            </p>
+          </div>
+          <a
+            href="./website-example/"
+            className="flex min-h-10 cursor-pointer items-center gap-2 rounded-lg bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#0F172A] transition-opacity duration-150 hover:opacity-90"
+          >
+            <span>Open Arcade Showcase</span>
+            <ExternalLink size={15} aria-hidden="true" />
+          </a>
         </div>
-        <a
-          href="./website-example/"
-          className="btn-pill"
-          style={{ textDecoration: 'none' }}
-        >
-          <span>Open Example Website</span>
-          <ExternalLink size={16} />
-        </a>
       </section>
 
-      {webMcpStatus && (
-        <section className="surface-card" style={{ padding: 'var(--space-lg)' }} aria-label="WebMCP Agent Tools">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '12px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Cpu size={18} color="var(--color-accent)" />
-              <strong style={{ fontSize: 'var(--text-title-lg)' }}>WebMCP Agent Interface</strong>
-            </div>
-            <span className="layer-badge">
-              {webMcpStatus.supported
-                ? `Native ${webMcpStatus.apiSurface} Active`
-                : 'Bridge Ready (Enable chrome://flags/#enable-webmcp-testing for native Chrome WebMCP)'}
-            </span>
+      {/* Interactive Gesture Lab */}
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="rounded-xl border border-[#334155] bg-[#1B2336] p-5">
+          <div className="flex items-center gap-2">
+            <MousePointerClick size={18} className="text-[#22C55E]" aria-hidden="true" />
+            <h3 className="font-display text-base font-semibold text-[#F8FAFC]">
+              1. Click &amp; Tap Triggers
+            </h3>
           </div>
-          <p style={{ margin: '0 0 14px 0', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
-            AI agents connected to this page can compose new sounds (e.g. an explosion), tune layers, audition audio, and export Tone.js / Vanilla Web Audio code using these registered WebMCP tools:
+          <p className="mt-1.5 text-sm text-[#CBD5E1]">
+            Test zero-latency <code className="font-display text-xs text-[#22C55E]">pointerdown</code>{' '}
+            feedback with real procedural recipes.
           </p>
-          <div className="playground-grid">
-            {webMcpStatus.tools.map((tool) => (
-              <div
-                key={tool.name}
-                style={{
-                  padding: '10px 12px',
-                  borderRadius: 'var(--radius-sm)',
-                  backgroundColor: 'var(--color-secondary-bg)',
-                  border: '1px solid var(--border-subtle)',
-                }}
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onPointerDown={() => void soundEngine.playRecipe(findSample('card-deal'))}
+              className="min-h-10 cursor-pointer rounded-lg border border-[#475569] bg-[#272F42] px-3.5 py-2 text-sm font-medium text-[#F8FAFC] transition-colors duration-150 hover:border-[#22C55E] hover:text-[#22C55E]"
+            >
+              Deal Card
+            </button>
+            <button
+              type="button"
+              onPointerDown={() => void soundEngine.playRecipe(findSample('ui-success-chime'))}
+              className="min-h-10 cursor-pointer rounded-lg bg-[#22C55E] px-3.5 py-2 text-sm font-semibold text-[#0F172A] transition-opacity duration-150 hover:opacity-90"
+            >
+              Confirm Chime
+            </button>
+            <button
+              type="button"
+              onPointerDown={() => void soundEngine.playRecipe(findSample('game-coin'))}
+              className="min-h-10 cursor-pointer rounded-lg border border-[#475569] bg-[#272F42] px-3.5 py-2 text-sm font-medium text-[#F8FAFC] transition-colors duration-150 hover:border-[#22C55E] hover:text-[#22C55E]"
+            >
+              Collect Coin
+            </button>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-[#334155] bg-[#1B2336] p-5">
+          <div className="flex items-center gap-2">
+            <Hand size={18} className="text-[#22C55E]" aria-hidden="true" />
+            <h3 className="font-display text-base font-semibold text-[#F8FAFC]">
+              2. Drag &amp; Swipe Gesture
+            </h3>
+          </div>
+          <p className="mt-1.5 text-sm text-[#CBD5E1]">
+            Drag horizontally to trigger felt slide, or tap to flip.
+          </p>
+          <div
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            style={{ transform: `translateX(${dragOffset}px)` }}
+            className="mt-4 flex min-h-16 cursor-grab touch-none items-center justify-center rounded-lg border border-dashed border-[#22C55E]/60 bg-[#0F172A] px-4 py-3 text-center text-sm font-medium text-[#F8FAFC] select-none active:cursor-grabbing"
+          >
+            {swipeStatus}
+          </div>
+        </div>
+      </section>
+
+      {/* Code Pattern Tabs */}
+      <section className="overflow-hidden rounded-xl border border-[#334155] bg-[#1B2336]">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#334155] px-4 py-3">
+          <div className="flex flex-wrap items-center gap-1" role="tablist" aria-label="Snippet patterns">
+            {(
+              [
+                { id: 'programmatic', label: 'Programmatic' },
+                { id: 'click', label: 'Click / Tap' },
+                { id: 'swipe', label: 'Swipe / Drag' },
+                { id: 'ai-agent', label: 'WebMCP Agent' },
+              ] as const
+            ).map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`min-h-8 cursor-pointer rounded-md px-3 py-1 text-xs font-medium transition-colors duration-150 sm:text-sm ${
+                  activeTab === tab.id
+                    ? 'bg-[#22C55E] font-semibold text-[#0F172A]'
+                    : 'text-[#CBD5E1] hover:bg-[#272F42] hover:text-[#F8FAFC]'
+                }`}
               >
-                <code style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', fontWeight: 600, color: 'var(--color-accent)' }}>
-                  {tool.name}
-                </code>
-                <p style={{ margin: '4px 0 0 0', fontSize: 'var(--text-caption)', color: 'var(--color-text-secondary)' }}>
-                  {tool.description}
-                </p>
-              </div>
+                {tab.label}
+              </button>
             ))}
-          </div>
-        </section>
-      )}
-
-      <section aria-label="Interactive trigger playground">
-        <h3 className="section-title" style={{ marginBottom: '12px' }}>
-          Interactive Trigger Playground
-        </h3>
-        <div className="playground-grid">
-          <article className="surface-card trigger-card">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <MousePointerClick size={18} color="var(--color-accent)" />
-              <strong>Click / Pointer Trigger</strong>
-            </div>
-            <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
-              Fires your currently loaded studio sound (<strong>{activeRecipe.name}</strong>) on{' '}
-              <code>onPointerDown</code> for instant tactile response.
-            </p>
-            <button
-              type="button"
-              className="btn-pill"
-              onPointerDown={() => {
-                void soundEngine.playRecipe(activeRecipe);
-              }}
-            >
-              Tap / Click to Trigger
-            </button>
-          </article>
-
-          <article className="surface-card trigger-card">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Hand size={18} color="var(--color-accent)" />
-              <strong>Swipe / Drag Card Trigger</strong>
-            </div>
-            <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
-              Drag horizontally to trigger <em>Card Slide</em>, release to trigger <em>Card Snap</em>, or tap to <em>Flip</em>.
-            </p>
-            <div
-              className="swipe-zone"
-              style={{ transform: `translateX(${dragOffset}px) rotate(${dragOffset * 0.06}deg)` }}
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  void soundEngine.playRecipe(findSample('card-snap-place'));
-                }
-              }}
-            >
-              <strong>{swipeStatus}</strong>
-            </div>
-          </article>
-
-          <article className="surface-card trigger-card">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Sparkles size={18} color="var(--color-accent)" />
-              <strong>Programmatic Game Events</strong>
-            </div>
-            <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
-              Simulate application state transitions calling sound functions programmatically.
-            </p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={() => void soundEngine.playRecipe(findSample('game-winning'))}
-              >
-                Win Event
-              </button>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => void soundEngine.playRecipe(findSample('game-sparkles'))}
-              >
-                Sparkles
-              </button>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => void soundEngine.playRecipe(findSample('game-error'))}
-              >
-                Invalid Move
-              </button>
-            </div>
-          </article>
-        </div>
-      </section>
-
-      <section className="surface-card" style={{ overflow: 'hidden' }} aria-label="Implementation code and AI agent guide">
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: '12px',
-            padding: '14px 16px',
-            backgroundColor: 'var(--color-secondary-bg)',
-            borderBottom: '1px solid var(--border-subtle)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Terminal size={18} color="var(--color-accent)" />
-            <strong>Developer &amp; AI Agent Integration Snippets</strong>
-          </div>
-
-          <div className="playlist-tabs" role="tablist">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === 'programmatic'}
-              className={`playlist-chip ${activeTab === 'programmatic' ? 'active' : ''}`}
-              onClick={() => setActiveTab('programmatic')}
-            >
-              Programmatic
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === 'click'}
-              className={`playlist-chip ${activeTab === 'click' ? 'active' : ''}`}
-              onClick={() => setActiveTab('click')}
-            >
-              Click / Pointer
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === 'swipe'}
-              className={`playlist-chip ${activeTab === 'swipe' ? 'active' : ''}`}
-              onClick={() => setActiveTab('swipe')}
-            >
-              Swipe / Drag
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === 'ai-agent'}
-              className={`playlist-chip ${activeTab === 'ai-agent' ? 'active' : ''}`}
-              onClick={() => setActiveTab('ai-agent')}
-            >
-              <Bot size={14} />
-              <span>AI Agent Runbook</span>
-            </button>
           </div>
 
           <button
             type="button"
-            className="btn-primary"
-            style={{ minBlockSize: '34px', padding: '6px 14px' }}
             onClick={() => void copyText(activeTab, snippets[activeTab])}
+            className="flex min-h-8 cursor-pointer items-center gap-1.5 rounded-md border border-[#475569] bg-[#272F42] px-3 py-1 text-xs font-semibold text-[#F8FAFC] transition-colors duration-150 hover:border-[#22C55E] hover:text-[#22C55E]"
           >
-            {copiedKey === activeTab ? <Check size={14} /> : <Copy size={14} />}
-            <span>{copiedKey === activeTab ? 'Copied!' : 'Copy Snippet'}</span>
+            {copiedKey === activeTab ? (
+              <Check size={14} aria-hidden="true" />
+            ) : (
+              <Copy size={14} aria-hidden="true" />
+            )}
+            <span>{copiedKey === activeTab ? 'Copied' : 'Copy Snippet'}</span>
           </button>
         </div>
 
-        <pre
-          className="code-pre"
-          style={{
-            backgroundColor: 'var(--color-code-bg)',
-            color: 'var(--color-code-text)',
-            maxBlockSize: '420px',
-          }}
-        >
+        <pre className="overflow-x-auto bg-[#0F172A] p-4 font-display text-xs leading-relaxed text-[#E2E8F0]">
           <code>{snippets[activeTab]}</code>
         </pre>
+      </section>
+
+      {/* WebMCP Status & Registered Tools */}
+      <section className="rounded-xl border border-[#334155] bg-[#1B2336] p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <Bot size={20} className="text-[#22C55E]" aria-hidden="true" />
+            <h3 className="font-display text-base font-semibold text-[#F8FAFC]">
+              WebMCP Browser Agent Status
+            </h3>
+          </div>
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 font-display text-xs font-semibold ${
+              webMcpStatus?.supported
+                ? 'border-[#22C55E]/50 bg-[#22C55E]/15 text-[#22C55E]'
+                : 'border-[#475569] bg-[#272F42] text-[#CBD5E1]'
+            }`}
+          >
+            <Cpu size={13} aria-hidden="true" />
+            <span>
+              {webMcpStatus?.supported
+                ? `Active (${webMcpStatus.apiSurface})`
+                : 'Bridge Ready (window.__soundMachineWebMCP)'}
+            </span>
+          </span>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+          {(webMcpStatus?.tools ?? []).map((tool) => (
+            <div
+              key={tool.name}
+              className="rounded-lg border border-[#334155] bg-[#0F172A] p-3"
+            >
+              <div className="flex items-center gap-2 font-display text-xs font-semibold text-[#22C55E]">
+                <Terminal size={13} aria-hidden="true" />
+                <span>{tool.name}</span>
+              </div>
+              <p className="mt-1 text-xs leading-relaxed text-[#CBD5E1]">{tool.description}</p>
+            </div>
+          ))}
+        </div>
       </section>
     </div>
   );
