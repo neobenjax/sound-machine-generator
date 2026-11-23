@@ -1,4 +1,4 @@
-import type { SoundRecipe } from './types';
+import type { DawProject, PianoRecordedNote, SoundRecipe } from './types';
 
 function toCamelCase(str: string): string {
   return (
@@ -356,4 +356,259 @@ export async function ${fnName}() {
 ${layerBlocks || '  // Enable at least one layer to generate sound.'}
 }
 `;
+}
+
+function serializeCompactRecipe(recipe: SoundRecipe) {
+  return {
+    masterVolumeDb: recipe.masterVolumeDb,
+    layers: recipe.layers
+      .filter((l) => l.enabled)
+      .map((l) => ({
+        type: l.type,
+        oscillatorType: l.oscillatorType,
+        noiseType: l.noiseType,
+        delayMs: l.delayMs,
+        durationMs: l.durationMs,
+        frequency: l.frequency,
+        frequencyEnd: l.frequencyEnd,
+        pitchCurve: l.pitchCurve,
+        harmonicity: l.harmonicity,
+        modulationIndex: l.modulationIndex,
+        fmDecayMs: l.fmDecayMs ?? 120,
+        envelope: l.envelope,
+        filter: l.filter,
+        gain: l.gain,
+        pan: l.pan,
+      })),
+  };
+}
+
+export function generateDawToneJsCode(
+  project: DawProject,
+  resolveRecipe: (recipeId: string, snapshot?: SoundRecipe) => SoundRecipe | undefined
+): string {
+  const fnName = `play${toCamelCase(project.name).replace(/^[a-z]/, (c) => c.toUpperCase())}`;
+  const hasSolo = project.tracks.some((t) => !t.muted && t.solo);
+  const activeTracks = project.tracks
+    .filter((t) => !t.muted && (!hasSolo || t.solo) && t.steps.length > 0)
+    .map((track) => {
+      const recipe = resolveRecipe(track.recipeId, track.recipeSnapshot);
+      return {
+        name: track.name,
+        volumeDb: track.volumeDb,
+        pan: track.pan,
+        recipe: recipe ? serializeCompactRecipe(recipe) : null,
+        steps: track.steps,
+      };
+    })
+    .filter((t) => t.recipe !== null);
+
+  return `// Requires: npm install tone
+import * as Tone from 'tone';
+
+const COMPOSITION = ${JSON.stringify(
+    {
+      name: project.name,
+      bpm: project.bpm,
+      stepCount: project.stepCount,
+      loop: project.loop,
+      tracks: activeTracks,
+    },
+    null,
+    2
+  )};
+
+const midiToHz = (m) => 440 * Math.pow(2, (m - 69) / 12);
+
+function triggerTrackNote(recipe, midiNote, time, durSec, velocity, trackDb, trackPan) {
+  const master = new Tone.Gain(Tone.dbToGain(recipe.masterVolumeDb + trackDb) * velocity).toDestination();
+  const ratio = midiToHz(midiNote) / 261.6256;
+  for (const layer of recipe.layers) {
+    const start = time + layer.delayMs / 1000;
+    const dur = Math.max(0.02, durSec);
+    const pan = new Tone.Panner(Math.max(-1, Math.min(1, layer.pan + trackPan))).connect(master);
+    const gain = new Tone.Gain(layer.gain).connect(pan);
+    const filter = new Tone.Filter({ type: layer.filter.type, frequency: layer.filter.frequency, Q: layer.filter.Q }).connect(gain);
+    if (layer.type === 'noise') {
+      const env = new Tone.AmplitudeEnvelope(layer.envelope).connect(filter);
+      const noise = new Tone.Noise(layer.noiseType).connect(env);
+      noise.start(start);
+      env.triggerAttackRelease(dur, start);
+      noise.stop(start + dur + layer.envelope.release + 0.05);
+    } else {
+      const SynthClass = layer.type === 'fm' ? Tone.FMSynth : Tone.Synth;
+      const synth = new SynthClass({
+        ...(layer.type === 'fm' ? { harmonicity: layer.harmonicity, modulationIndex: layer.modulationIndex } : {}),
+        oscillator: { type: layer.oscillatorType },
+        envelope: layer.envelope,
+      }).connect(filter);
+      const f0 = Math.max(20, layer.frequency * ratio);
+      const f1 = Math.max(20, layer.frequencyEnd * ratio);
+      synth.triggerAttackRelease(f0, dur, start);
+      if (Math.abs(f1 - f0) > 0.5) synth.frequency.exponentialRampToValueAtTime(f1, start + dur);
+    }
+  }
+}
+
+export async function ${fnName}() {
+  await Tone.start();
+  const stepSec = 60 / COMPOSITION.bpm / 4;
+  const now = Tone.now() + 0.02;
+  for (const track of COMPOSITION.tracks) {
+    for (const s of track.steps) {
+      triggerTrackNote(
+        track.recipe,
+        s.midiNote,
+        now + s.step * stepSec,
+        s.lengthSteps * stepSec,
+        s.velocity,
+        track.volumeDb,
+        track.pan
+      );
+    }
+  }
+}
+`;
+}
+
+export function generateDawVanillaWebAudioCode(
+  project: DawProject,
+  resolveRecipe: (recipeId: string, snapshot?: SoundRecipe) => SoundRecipe | undefined
+): string {
+  const fnName = `play${toCamelCase(project.name).replace(/^[a-z]/, (c) => c.toUpperCase())}`;
+  const hasSolo = project.tracks.some((t) => !t.muted && t.solo);
+  const activeTracks = project.tracks
+    .filter((t) => !t.muted && (!hasSolo || t.solo) && t.steps.length > 0)
+    .map((track) => {
+      const recipe = resolveRecipe(track.recipeId, track.recipeSnapshot);
+      return {
+        name: track.name,
+        volumeDb: track.volumeDb,
+        pan: track.pan,
+        recipe: recipe ? serializeCompactRecipe(recipe) : null,
+        steps: track.steps,
+      };
+    })
+    .filter((t) => t.recipe !== null);
+
+  return `// Zero-dependency Native Web Audio API DAW Composition
+let sharedCtx = null;
+
+const COMPOSITION = ${JSON.stringify(
+    {
+      name: project.name,
+      bpm: project.bpm,
+      stepCount: project.stepCount,
+      tracks: activeTracks,
+    },
+    null,
+    2
+  )};
+
+const midiToHz = (m) => 440 * Math.pow(2, (m - 69) / 12);
+const dbToGain = (db) => Math.pow(10, db / 20);
+
+function triggerLayer(ctx, dest, layer, ratio, start, dur, vel) {
+  const pan = ctx.createStereoPanner();
+  pan.pan.value = Math.max(-1, Math.min(1, layer.pan));
+  const filter = ctx.createBiquadFilter();
+  filter.type = layer.filter.type;
+  filter.frequency.setValueAtTime(Math.max(20, layer.filter.frequency), start);
+  filter.Q.value = layer.filter.Q;
+  const amp = ctx.createGain();
+  const peak = Math.max(0.0001, layer.gain * vel);
+  const { attack, decay, sustain, release } = layer.envelope;
+  amp.gain.setValueAtTime(0.0001, start);
+  amp.gain.linearRampToValueAtTime(peak, start + attack);
+  amp.gain.linearRampToValueAtTime(Math.max(0.0001, peak * sustain), start + attack + decay);
+  amp.gain.setValueAtTime(Math.max(0.0001, peak * sustain), start + dur);
+  amp.gain.linearRampToValueAtTime(0.0001, start + dur + release);
+  filter.connect(amp);
+  amp.connect(pan);
+  pan.connect(dest);
+
+  if (layer.type === 'noise') {
+    const len = Math.floor(ctx.sampleRate * (dur + release + 0.05));
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const ch = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) ch[i] = Math.random() * 2 - 1;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(filter);
+    src.start(start);
+    src.stop(start + dur + release + 0.05);
+  } else {
+    const osc = ctx.createOscillator();
+    osc.type = layer.oscillatorType;
+    const f0 = Math.max(20, layer.frequency * ratio);
+    const f1 = Math.max(20, layer.frequencyEnd * ratio);
+    osc.frequency.setValueAtTime(f0, start);
+    if (Math.abs(f1 - f0) > 0.5) osc.frequency.exponentialRampToValueAtTime(f1, start + dur);
+    osc.connect(filter);
+    osc.start(start);
+    osc.stop(start + dur + release + 0.05);
+  }
+}
+
+export async function ${fnName}() {
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  if (!sharedCtx) sharedCtx = new AudioCtx();
+  if (sharedCtx.state === 'suspended') await sharedCtx.resume();
+  const ctx = sharedCtx;
+  const stepSec = 60 / COMPOSITION.bpm / 4;
+  const base = ctx.currentTime + 0.02;
+
+  for (const track of COMPOSITION.tracks) {
+    const trackGain = ctx.createGain();
+    trackGain.gain.value = dbToGain(track.recipe.masterVolumeDb + track.volumeDb);
+    trackGain.connect(ctx.destination);
+    for (const s of track.steps) {
+      const ratio = midiToHz(s.midiNote) / 261.6256;
+      const start = base + s.step * stepSec;
+      const dur = Math.max(0.02, s.lengthSteps * stepSec);
+      for (const layer of track.recipe.layers) {
+        triggerLayer(ctx, trackGain, layer, ratio, start + layer.delayMs / 1000, dur, s.velocity);
+      }
+    }
+  }
+}
+`;
+}
+
+export function generateMelodyCode(
+  notes: PianoRecordedNote[],
+  recipe: SoundRecipe,
+  mode: 'webaudio' | 'tone' | 'json'
+): string {
+  if (mode === 'json') {
+    return JSON.stringify({ recipe: serializeCompactRecipe(recipe), notes }, null, 2);
+  }
+  const project: DawProject = {
+    id: 'piano-melody',
+    name: `${recipe.name} Melody`,
+    bpm: 120,
+    stepCount: 16,
+    loop: false,
+    tracks: [
+      {
+        id: 'melody-track',
+        name: recipe.name,
+        recipeId: recipe.id,
+        recipeSnapshot: recipe,
+        muted: false,
+        solo: false,
+        volumeDb: 0,
+        pan: 0,
+        steps: notes.map((n) => ({
+          step: Math.round((n.startMs / 1000) * 8), // 16th-note quantize at 120 BPM
+          midiNote: n.midiNote,
+          velocity: n.velocity,
+          lengthSteps: Math.max(1, Math.round((n.durationMs / 1000) * 8)),
+        })),
+      },
+    ],
+  };
+  return mode === 'tone'
+    ? generateDawToneJsCode(project, () => recipe)
+    : generateDawVanillaWebAudioCode(project, () => recipe);
 }

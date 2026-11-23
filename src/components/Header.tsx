@@ -3,12 +3,14 @@ import {
   BookOpen,
   Download,
   ExternalLink,
+  Grid,
+  Piano,
   Sliders,
   Upload,
   Volume2,
 } from 'lucide-react';
 
-export type AppView = 'studio' | 'integrate';
+export type AppView = 'studio' | 'daw' | 'integrate';
 
 interface HeaderProps {
   activeView: AppView;
@@ -17,6 +19,9 @@ interface HeaderProps {
   onUnlockAudio: () => void;
   onExportLibrary: () => void;
   onImportLibrary: (file: File) => void;
+  isPianoOpen: boolean;
+  onTogglePiano: () => void;
+  onOpenWavImport: () => void;
 }
 
 export function Header({
@@ -26,6 +31,9 @@ export function Header({
   onUnlockAudio,
   onExportLibrary,
   onImportLibrary,
+  isPianoOpen,
+  onTogglePiano,
+  onOpenWavImport,
 }: HeaderProps) {
   const isReady = audioState === 'running';
 
@@ -73,6 +81,19 @@ export function Header({
           </button>
           <button
             type="button"
+            aria-current={activeView === 'daw' ? 'page' : undefined}
+            onClick={() => onChangeView('daw')}
+            className={`flex min-h-9 cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors duration-150 ${
+              activeView === 'daw'
+                ? 'bg-[#22C55E] font-semibold text-[#0F172A]'
+                : 'text-[#CBD5E1] hover:bg-[#272F42] hover:text-[#F8FAFC]'
+            }`}
+          >
+            <Grid size={15} aria-hidden="true" />
+            <span>DAW</span>
+          </button>
+          <button
+            type="button"
             aria-current={activeView === 'integrate' ? 'page' : undefined}
             onClick={() => onChangeView('integrate')}
             className={`flex min-h-9 cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors duration-150 ${
@@ -94,6 +115,31 @@ export function Header({
         </nav>
 
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={onTogglePiano}
+            aria-pressed={isPianoOpen}
+            title="Toggle interactive piano drawer"
+            className={`flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors duration-150 sm:text-sm ${
+              isPianoOpen
+                ? 'border-[#22C55E] bg-[#22C55E]/20 text-[#22C55E]'
+                : 'border-[#475569] bg-[#1B2336] text-[#F8FAFC] hover:border-[#22C55E]/60'
+            }`}
+          >
+            <Piano size={15} aria-hidden="true" />
+            <span>Piano</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onOpenWavImport}
+            title="Decode a .wav file into SoundLayers"
+            className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-[#475569] bg-[#1B2336] px-3 py-1.5 text-xs font-semibold text-[#F8FAFC] transition-colors duration-150 hover:border-[#22C55E]/60 sm:text-sm"
+          >
+            <AudioWaveform size={15} aria-hidden="true" />
+            <span>Decode .WAV</span>
+          </button>
+
           <button
             type="button"
             onClick={onUnlockAudio}

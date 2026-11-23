@@ -20,10 +20,16 @@ import { useEffect, useState } from 'react';
 import {
   EXAMPLE_SHOWCASE_SOUNDS,
   MCP_VIDEOGAME_QUEST_SOUNDS,
+  NEON_CITADEL_DAW_SHOWCASE,
   TREASURE_CHEST_SOUND,
 } from './sounds';
 import { soundEngine } from '../src/engine/audioEngine';
-import { generateToneJsCode, generateVanillaWebAudioCode } from '../src/engine/codeGenerator';
+import {
+  generateDawToneJsCode,
+  generateDawVanillaWebAudioCode,
+  generateToneJsCode,
+  generateVanillaWebAudioCode,
+} from '../src/engine/codeGenerator';
 
 type CodeFormat = 'webaudio' | 'tone';
 
@@ -94,6 +100,11 @@ export function ExampleApp() {
   const [copiedQuestCode, setCopiedQuestCode] = useState(false);
   const [copiedChest, setCopiedChest] = useState(false);
   const [showChestCode, setShowChestCode] = useState(false);
+  const [dawPlaying, setDawPlaying] = useState(false);
+  const [dawStep, setDawStep] = useState(-1);
+  const [dawCodeMode, setDawCodeMode] = useState<'webaudio' | 'tone' | 'json'>('webaudio');
+  const [copiedDawPrompt, setCopiedDawPrompt] = useState(false);
+  const [copiedDawCode, setCopiedDawCode] = useState(false);
   const [lastPlayedLabel, setLastPlayedLabel] = useState<string>('Ready to Play');
 
   const activeItem =
@@ -127,6 +138,34 @@ export function ExampleApp() {
         : generateToneJsCode(activeQuest.recipe);
 
   const chestCode = generateToneJsCode(TREASURE_CHEST_SOUND);
+  const dawResolve = (_id: string, snap?: typeof TREASURE_CHEST_SOUND) => snap;
+  const dawCode =
+    dawCodeMode === 'webaudio'
+      ? generateDawVanillaWebAudioCode(NEON_CITADEL_DAW_SHOWCASE.project, dawResolve)
+      : dawCodeMode === 'tone'
+        ? generateDawToneJsCode(NEON_CITADEL_DAW_SHOWCASE.project, dawResolve)
+        : JSON.stringify(NEON_CITADEL_DAW_SHOWCASE.project, null, 2);
+
+  const handleToggleDawShowcase = async () => {
+    if (dawPlaying) {
+      soundEngine.stopDawPlayback();
+      setDawPlaying(false);
+      setDawStep(-1);
+    } else {
+      soundEngine.stopAll();
+      setDawPlaying(true);
+      setLastPlayedLabel(NEON_CITADEL_DAW_SHOWCASE.title);
+      await soundEngine.startDawPlayback(
+        NEON_CITADEL_DAW_SHOWCASE.project,
+        dawResolve,
+        (step) => setDawStep(step),
+        () => {
+          setDawPlaying(false);
+          setDawStep(-1);
+        }
+      );
+    }
+  };
   const currentSlide = SLIDESHOW_STEPS[slideIndex];
 
   useEffect(() => {
@@ -533,6 +572,155 @@ export function ExampleApp() {
 
               <pre className="max-h-[480px] flex-1 overflow-auto bg-[#0F172A] p-4 font-display text-xs leading-relaxed text-[#E2E8F0]">
                 <code>{activeQuestCode}</code>
+              </pre>
+            </div>
+          </div>
+        </section>
+
+        {/* WebMCP 8-Track DAW Showcase */}
+        <section
+          id="daw-showcase"
+          className="scroll-mt-20 rounded-2xl border border-[#22C55E]/40 bg-[#1B2336] p-6"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-[#22C55E]/40 bg-[#22C55E]/15 px-2.5 py-0.5 font-display text-xs font-semibold text-[#22C55E]">
+                  <Bot size={13} aria-hidden="true" />
+                  <span>WebMCP 8-Track DAW Showcase</span>
+                </span>
+                <span className="rounded border border-[#475569] bg-[#0F172A] px-2 py-0.5 font-mono text-xs text-[#94A3B8]">
+                  8 Tracks • 128 BPM • 16 Steps • 0 KB Audio
+                </span>
+              </div>
+              <h2 className="mt-2 font-display text-xl font-bold text-[#F8FAFC]">
+                {NEON_CITADEL_DAW_SHOWCASE.title}
+              </h2>
+              <p className="mt-1 text-sm text-[#CBD5E1]">{NEON_CITADEL_DAW_SHOWCASE.subtitle}</p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void handleToggleDawShowcase()}
+                className="flex min-h-10 cursor-pointer items-center gap-2 rounded-lg bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#0F172A] hover:opacity-90"
+              >
+                {dawPlaying ? <Square size={15} /> : <Play size={15} />}
+                <span>{dawPlaying ? 'Stop Loop' : 'Play 8-Track Loop'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  soundEngine.stopDawPlayback();
+                  soundEngine.stopAll();
+                  setDawPlaying(false);
+                  setDawStep(-1);
+                }}
+                className="flex min-h-10 cursor-pointer items-center gap-1.5 rounded-lg border border-[#475569] bg-[#272F42] px-3.5 py-2 text-sm font-semibold text-[#F8FAFC] hover:border-[#EF4444] hover:text-[#EF4444]"
+              >
+                <Square size={14} aria-hidden="true" />
+                <span>Stop</span>
+              </button>
+            </div>
+          </div>
+
+          {/* WebMCP Prompt Box */}
+          <div className="mt-4 rounded-xl border border-[#334155] bg-[#0F172A] p-4">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <span className="flex items-center gap-1.5 font-display text-xs font-semibold text-[#22C55E]">
+                <Terminal size={13} aria-hidden="true" />
+                <span>WebMCP Prompt Used to Generate This Composition</span>
+              </span>
+              <button
+                type="button"
+                onClick={async () => {
+                  await navigator.clipboard.writeText(NEON_CITADEL_DAW_SHOWCASE.prompt);
+                  setCopiedDawPrompt(true);
+                  window.setTimeout(() => setCopiedDawPrompt(false), 1600);
+                }}
+                className="flex cursor-pointer items-center gap-1 text-xs font-semibold text-[#CBD5E1] hover:text-[#22C55E]"
+              >
+                {copiedDawPrompt ? <Check size={13} /> : <Copy size={13} />}
+                <span>{copiedDawPrompt ? 'Copied' : 'Copy Prompt'}</span>
+              </button>
+            </div>
+            <p className="font-mono text-xs leading-relaxed text-[#E2E8F0]">
+              &ldquo;{NEON_CITADEL_DAW_SHOWCASE.prompt}&rdquo;
+            </p>
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[1.05fr_0.95fr]">
+            {/* 8-Track Visualizer */}
+            <div className="flex flex-col gap-2 rounded-xl border border-[#334155] bg-[#0F172A] p-3.5">
+              {NEON_CITADEL_DAW_SHOWCASE.project.tracks.map((track) => (
+                <div key={track.id} className="flex items-center gap-2">
+                  <span className="w-28 shrink-0 truncate font-mono text-[11px] font-semibold text-[#CBD5E1]">
+                    {track.name}
+                  </span>
+                  <div className="grid flex-1 grid-cols-16 gap-1">
+                    {Array.from({ length: 16 }, (_, idx) => {
+                      const active = track.steps.some((s) => s.step === idx);
+                      const isHead = dawStep === idx;
+                      return (
+                        <div
+                          key={idx}
+                          className={`h-4 rounded-sm transition-colors ${
+                            active
+                              ? isHead
+                                ? 'bg-[#F8FAFC]'
+                                : 'bg-[#22C55E]'
+                              : isHead
+                                ? 'bg-[#334155]'
+                                : 'bg-[#1B2336]'
+                          }`}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Generated DAW Code */}
+            <div className="flex flex-col overflow-hidden rounded-xl border border-[#334155] bg-[#0F172A]">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#334155] px-3 py-2">
+                <div className="flex gap-1">
+                  {(
+                    [
+                      { id: 'webaudio', label: 'Web Audio API' },
+                      { id: 'tone', label: 'Tone.js' },
+                      { id: 'json', label: 'JSON' },
+                    ] as const
+                  ).map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setDawCodeMode(t.id)}
+                      className={`cursor-pointer rounded px-2 py-1 text-xs font-medium ${
+                        dawCodeMode === t.id
+                          ? 'bg-[#22C55E] font-semibold text-[#0F172A]'
+                          : 'text-[#CBD5E1] hover:text-[#F8FAFC]'
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(dawCode);
+                    setCopiedDawCode(true);
+                    window.setTimeout(() => setCopiedDawCode(false), 1600);
+                  }}
+                  className="flex cursor-pointer items-center gap-1 text-xs font-semibold text-[#CBD5E1] hover:text-[#22C55E]"
+                >
+                  {copiedDawCode ? <Check size={13} /> : <Copy size={13} />}
+                  <span>{copiedDawCode ? 'Copied' : 'Copy'}</span>
+                </button>
+              </div>
+              <pre className="max-h-60 overflow-auto p-3 font-mono text-[11px] leading-relaxed text-[#E2E8F0]">
+                <code>{dawCode}</code>
               </pre>
             </div>
           </div>

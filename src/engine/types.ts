@@ -62,3 +62,40 @@ export interface Playlist {
   description: string;
   isBuiltIn?: boolean;
 }
+
+export interface DawNoteStep {
+  step: number;        // 0-based step index (0 .. stepCount - 1)
+  midiNote: number;    // 21 (A0) .. 108 (C8), default 60 (C4)
+  velocity: number;    // 0.1 .. 1.0
+  lengthSteps: number; // 1 .. stepCount
+}
+
+export interface DawTrack {
+  id: string;
+  name: string;
+  recipeId: string;
+  recipeSnapshot?: SoundRecipe;
+  muted: boolean;
+  solo: boolean;
+  volumeDb: number; // -24 to +6
+  pan: number;      // -1.0 to 1.0
+  steps: DawNoteStep[];
+}
+
+export interface DawProject {
+  id: string;
+  name: string;
+  bpm: number;       // 60 - 200
+  stepCount: 16 | 32;
+  loop: boolean;
+  tracks: DawTrack[]; // 1 to 8 tracks (default 4)
+  updatedAt?: string;
+}
+
+export interface PianoRecordedNote {
+  id: string;
+  midiNote: number;
+  startMs: number;
+  durationMs: number;
+  velocity: number;
+}
