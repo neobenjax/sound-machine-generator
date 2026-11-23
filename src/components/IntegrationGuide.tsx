@@ -125,20 +125,21 @@ cardEl.addEventListener('pointerup', () => {
   startX = null;
   playCardSnapPlacement();
 });`,
-    'ai-agent': `// WebMCP Agent Prompt Example:
-// "Using the Sound Machine WebMCP tools on this page:
-//  1. Call compose_sound to create a crisp sci-fi shield recharge sound
-//  2. Call play_current_sound so I can hear it
-//  3. Call export_current_sound to get the Tone.js & Web Audio code"
+    'ai-agent': `// WebMCP Agent Prompt Examples:
+// 1. Sound Console:
+//    "Call compose_sound to create a sci-fi shield recharge, play_current_sound, then export_current_sound."
+// 2. 8-Track DAW:
+//    "Call configure_daw_project + add_daw_track + set_daw_track_steps to build an 8-track loop, then export_daw_composition."
+// 3. .WAV-to-SoundLayers Decoder:
+//    "Call analyze_audio_to_layers with audioBase64 to convert an attached .wav SFX into a procedural SoundRecipe JSON."
 
-// Registered WebMCP Tools on this Console:
-// - list_sound_presets
-// - load_sound_preset
-// - compose_sound
-// - tune_sound_layer
-// - play_current_sound
-// - export_current_sound
-// - save_current_sound`,
+// Registered WebMCP Tools (17 total):
+// Console: list_sound_presets, load_sound_preset, compose_sound, tune_sound_layer,
+//          play_current_sound, export_current_sound, save_current_sound
+// DAW:     get_daw_project, configure_daw_project, add_daw_track, remove_daw_track,
+//          set_daw_track_steps, play_daw_project, stop_daw_project, export_daw_composition
+// Piano:   play_piano_notes
+// Decoder: analyze_audio_to_layers`,
   };
 
   return (

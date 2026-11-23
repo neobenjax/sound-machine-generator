@@ -1,23 +1,30 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { soundEngine } from './engine/audioEngine';
-import type { Playlist, SoundRecipe } from './engine/types';
+import type { DawProject, PianoRecordedNote, Playlist, SoundRecipe } from './engine/types';
 import { registerSoundMachineWebMCP, type WebMCPStatus } from './engine/webmcp';
 import { BUILT_IN_PLAYLISTS, BUILT_IN_SAMPLES } from './samples';
 import {
+  createDefaultDawProject,
+  createDefaultDawTrack,
   DEFAULT_CUSTOM_PLAYLIST,
   downloadJsonFile,
   loadCustomPlaylists,
   loadCustomSounds,
+  loadDawProjects,
   parseImportedBundle,
   saveCustomPlaylists,
   saveCustomSounds,
+  saveDawProjects,
 } from './storage/localStore';
 import { CodeInspector } from './components/CodeInspector';
 import { ConfirmDialog } from './components/ConfirmDialog';
+import { DawWorkspace } from './components/DawWorkspace';
 import { Header, type AppView } from './components/Header';
 import { IntegrationGuide } from './components/IntegrationGuide';
+import { PianoDrawer } from './components/PianoDrawer';
 import { PlaylistSidebar } from './components/PlaylistSidebar';
 import { StudioConsole } from './components/StudioConsole';
+import { WavImportModal } from './components/WavImportModal';
 
 type MobilePane = 'playlists' | 'console' | 'code';
 
@@ -55,6 +62,19 @@ export default function App() {
   const [toast, setToast] = useState<string | null>(null);
   const [webMcpStatus, setWebMcpStatus] = useState<WebMCPStatus | null>(null);
   const [soundPendingDelete, setSoundPendingDelete] = useState<SoundRecipe | null>(null);
+  const [isPianoOpen, setIsPianoOpen] = useState(false);
+  const [isWavModalOpen, setIsWavModalOpen] = useState(false);
+
+  const [dawProject, setDawProject] = useState<DawProject>(() => {
+    const saved = loadDawProjects();
+    return saved[0] ?? createDefaultDawProject([...BUILT_IN_SAMPLES, ...loadCustomSounds()]);
+  });
+  const [selectedDawTrackId, setSelectedDawTrackId] = useState<string>(
+    () => dawProject.tracks[0]?.id ?? ''
+  );
+  const [isDawPlaying, setIsDawPlaying] = useState(false);
+  const [dawStep, setDawStep] = useState(-1);
+
   const loopTimerRef = useRef<number | null>(null);
 
   const showToast = useCallback((msg: string) => {
@@ -222,13 +242,16 @@ export default function App() {
   };
 
   const handleExportLibrary = () => {
+    const storedDaw = loadDawProjects();
+    const dawProjects = [dawProject, ...storedDaw.filter((p) => p.id !== dawProject.id)];
     downloadJsonFile('sound-machine-library.json', {
       version: '2.0.0',
       exportedAt: new Date().toISOString(),
       playlists: customPlaylists,
       sounds: customSounds,
+      dawProjects,
     });
-    showToast('Exported custom library JSON');
+    showToast('Exported custom library & DAW JSON');
   };
 
   const handleExportSingle = useCallback(() => {
@@ -237,6 +260,101 @@ export default function App() {
     showToast(`Exported "${draftRecipe.name}"`);
   }, [draftRecipe, showToast]);
 
+  const resolveDawRecipe = useCallback(
+    (recipeId: string, snapshot?: SoundRecipe) =>
+      allSounds.find((s) => s.id === recipeId) ?? snapshot ?? allSounds[0],
+    [allSounds]
+  );
+
+  useEffect(() => {
+    soundEngine.updateDawProject(dawProject, resolveDawRecipe);
+  }, [dawProject, resolveDawRecipe]);
+
+  const handleToggleDawPlay = useCallback(async () => {
+    if (isDawPlaying) {
+      soundEngine.stopDawPlayback();
+      setIsDawPlaying(false);
+      setDawStep(-1);
+    } else {
+      stopLoop();
+      setIsDawPlaying(true);
+      await soundEngine.startDawPlayback(
+        dawProject,
+        resolveDawRecipe,
+        (step) => setDawStep(step),
+        () => {
+          setIsDawPlaying(false);
+          setDawStep(-1);
+        }
+      );
+      syncAudioState();
+    }
+  }, [dawProject, isDawPlaying, resolveDawRecipe, stopLoop, syncAudioState]);
+
+  const handleStopDaw = useCallback(() => {
+    soundEngine.stopDawPlayback();
+    setIsDawPlaying(false);
+    setDawStep(-1);
+  }, []);
+
+  const handleSaveDawProject = useCallback(() => {
+    const existing = loadDawProjects();
+    const updated: DawProject = { ...dawProject, updatedAt: new Date().toISOString() };
+    const next = [updated, ...existing.filter((p) => p.id !== updated.id)];
+    saveDawProjects(next);
+    setDawProject(updated);
+    showToast(`Saved DAW project "${updated.name}"`);
+  }, [dawProject, showToast]);
+
+  const handleSendPianoNotesToDaw = useCallback(
+    (notes: PianoRecordedNote[]) => {
+      if (notes.length === 0) return;
+      const sorted = [...notes].sort((a, b) => a.startMs - b.startMs);
+      const firstStartMs = sorted[0].startMs;
+      const stepMs = (60 / dawProject.bpm / 4) * 1000;
+      const maxRelStep = Math.round((sorted[sorted.length - 1].startMs - firstStartMs) / stepMs);
+      const targetStepCount: 16 | 32 =
+        maxRelStep >= 16 || dawProject.stepCount === 32 ? 32 : 16;
+
+      const occupied = new Set<number>();
+      const mappedSteps: Array<{
+        step: number;
+        midiNote: number;
+        velocity: number;
+        lengthSteps: number;
+      }> = [];
+
+      for (const n of sorted) {
+        let step = Math.max(
+          0,
+          Math.min(targetStepCount - 1, Math.round((n.startMs - firstStartMs) / stepMs))
+        );
+        while (occupied.has(step) && step < targetStepCount - 1) {
+          step += 1;
+        }
+        if (occupied.has(step)) continue;
+        occupied.add(step);
+        mappedSteps.push({
+          step,
+          midiNote: n.midiNote,
+          velocity: n.velocity,
+          lengthSteps: Math.max(1, Math.min(2, Math.round(n.durationMs / stepMs))),
+        });
+      }
+
+      setDawProject((prev) => ({
+        ...prev,
+        stepCount: targetStepCount,
+        tracks: prev.tracks.map((t) =>
+          t.id === selectedDawTrackId ? { ...t, steps: mappedSteps } : t
+        ),
+      }));
+      setActiveView('daw');
+      showToast(`Sent ${mappedSteps.length} notes to DAW track (${targetStepCount} steps)`);
+    },
+    [dawProject.bpm, dawProject.stepCount, selectedDawTrackId, showToast]
+  );
+
   const webMcpRef = useRef({
     allPlaylists,
     allSounds,
@@ -244,6 +362,10 @@ export default function App() {
     playCurrent,
     handleSaveAsNew,
     handleExportSingle,
+    dawProject,
+    handleToggleDawPlay,
+    handleStopDaw,
+    resolveDawRecipe,
   });
   webMcpRef.current = {
     allPlaylists,
@@ -252,6 +374,10 @@ export default function App() {
     playCurrent,
     handleSaveAsNew,
     handleExportSingle,
+    dawProject,
+    handleToggleDawPlay,
+    handleStopDaw,
+    resolveDawRecipe,
   };
 
   useEffect(() => {
@@ -267,6 +393,30 @@ export default function App() {
       playActive: () => webMcpRef.current.playCurrent(),
       saveAsNew: () => webMcpRef.current.handleSaveAsNew(),
       downloadActiveJson: () => webMcpRef.current.handleExportSingle(),
+      getDawProject: () => webMcpRef.current.dawProject,
+      setDawProject: (proj) => setDawProject(proj),
+      playDawProject: async () => {
+        if (!isDawPlaying) {
+          await webMcpRef.current.handleToggleDawPlay();
+        }
+      },
+      stopDawProject: () => webMcpRef.current.handleStopDaw(),
+      playPianoNotes: async (notes) => {
+        const recipe = webMcpRef.current.draftRecipe;
+        let maxMs = 0;
+        for (const n of notes) {
+          const delay = Math.max(0, n.delayMs ?? 0);
+          const dur = Math.max(40, n.durationMs ?? 240);
+          window.setTimeout(() => {
+            void soundEngine.playRecipeAtNote(recipe, n.midiNote, {
+              durationMsOverride: dur,
+              velocity: n.velocity ?? 0.85,
+            });
+          }, delay);
+          if (delay + dur > maxMs) maxMs = delay + dur;
+        }
+        return maxMs;
+      },
     });
     setWebMcpStatus(status);
   }, []);
@@ -274,7 +424,11 @@ export default function App() {
   const handleImportLibrary = async (file: File) => {
     try {
       const text = await file.text();
-      const { playlists: importedPlaylists, sounds: importedSounds } = parseImportedBundle(text);
+      const {
+        playlists: importedPlaylists,
+        sounds: importedSounds,
+        dawProjects: importedDawProjects,
+      } = parseImportedBundle(text);
 
       const mergedPlaylists = [...customPlaylists];
       for (const pl of importedPlaylists) {
@@ -296,13 +450,38 @@ export default function App() {
         updatedAt: new Date().toISOString(),
       }));
 
-      const nextSounds = [...normalizedImported, ...customSounds];
-      setCustomSounds(nextSounds);
-      saveCustomSounds(nextSounds);
-      if (normalizedImported[0]) {
+      if (normalizedImported.length > 0) {
+        const nextSounds = [...normalizedImported, ...customSounds];
+        setCustomSounds(nextSounds);
+        saveCustomSounds(nextSounds);
         handleSelectSound(normalizedImported[0]);
       }
-      showToast(`Imported ${normalizedImported.length} sound(s)`);
+
+      if (importedDawProjects.length > 0) {
+        const existingDaw = loadDawProjects();
+        const mergedDaw = [
+          ...importedDawProjects,
+          ...existingDaw.filter((p) => !importedDawProjects.some((imp) => imp.id === p.id)),
+        ];
+        saveDawProjects(mergedDaw);
+        const firstProj = importedDawProjects[0];
+        setDawProject(firstProj);
+        if (firstProj.tracks[0]) {
+          setSelectedDawTrackId(firstProj.tracks[0].id);
+        }
+        if (normalizedImported.length === 0) {
+          setActiveView('daw');
+        }
+      }
+
+      if (normalizedImported.length === 0 && importedDawProjects.length === 0) {
+        showToast('No custom sounds or DAW projects found in JSON');
+      } else {
+        const parts: string[] = [];
+        if (normalizedImported.length > 0) parts.push(`${normalizedImported.length} sound(s)`);
+        if (importedDawProjects.length > 0) parts.push(`${importedDawProjects.length} DAW project(s)`);
+        showToast(`Imported ${parts.join(' & ')}`);
+      }
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Failed to import JSON');
     }
@@ -317,6 +496,9 @@ export default function App() {
         onUnlockAudio={() => void handleUnlockAudio()}
         onExportLibrary={handleExportLibrary}
         onImportLibrary={(file) => void handleImportLibrary(file)}
+        isPianoOpen={isPianoOpen}
+        onTogglePiano={() => setIsPianoOpen((v) => !v)}
+        onOpenWavImport={() => setIsWavModalOpen(true)}
       />
 
       <main className="mx-auto w-full max-w-[1600px] flex-1 px-4 py-5 sm:px-6">
@@ -393,6 +575,21 @@ export default function App() {
               />
             </div>
           </>
+        ) : activeView === 'daw' ? (
+          <DawWorkspace
+            project={dawProject}
+            allSounds={allSounds}
+            selectedTrackId={selectedDawTrackId}
+            isPlaying={isDawPlaying}
+            currentStep={dawStep}
+            onSelectTrack={setSelectedDawTrackId}
+            onChangeProject={setDawProject}
+            onTogglePlay={() => void handleToggleDawPlay()}
+            onStop={handleStopDaw}
+            onSaveProject={handleSaveDawProject}
+            onOpenPiano={() => setIsPianoOpen(true)}
+            onOpenWavImport={() => setIsWavModalOpen(true)}
+          />
         ) : (
           <IntegrationGuide
             activeRecipe={draftRecipe}
@@ -401,6 +598,54 @@ export default function App() {
           />
         )}
       </main>
+
+      <PianoDrawer
+        open={isPianoOpen}
+        recipe={
+          activeView === 'daw'
+            ? (resolveDawRecipe(
+                dawProject.tracks.find((t) => t.id === selectedDawTrackId)?.recipeId ?? '',
+                dawProject.tracks.find((t) => t.id === selectedDawTrackId)?.recipeSnapshot
+              ) ?? draftRecipe)
+            : draftRecipe
+        }
+        canSendToDaw={dawProject.tracks.length > 0}
+        onClose={() => setIsPianoOpen(false)}
+        onSendToDawTrack={handleSendPianoNotesToDaw}
+      />
+
+      <WavImportModal
+        open={isWavModalOpen}
+        onClose={() => setIsWavModalOpen(false)}
+        onLoadIntoConsole={(recipe) => {
+          setBaseRecipe(cloneRecipe(recipe));
+          setDraftRecipe(cloneRecipe(recipe));
+          setActiveView('studio');
+          showToast(`Decoded "${recipe.name}" into Console`);
+        }}
+        onSendToDaw={(recipe) => {
+          const nextSounds = [recipe, ...customSounds];
+          setCustomSounds(nextSounds);
+          saveCustomSounds(nextSounds);
+          setDawProject((prev) => {
+            if (prev.tracks.length < 8) {
+              const newTrack = createDefaultDawTrack(prev.tracks.length, recipe);
+              setSelectedDawTrackId(newTrack.id);
+              return { ...prev, tracks: [...prev.tracks, newTrack] };
+            }
+            return {
+              ...prev,
+              tracks: prev.tracks.map((t) =>
+                t.id === selectedDawTrackId
+                  ? { ...t, recipeId: recipe.id, recipeSnapshot: recipe }
+                  : t
+              ),
+            };
+          });
+          setActiveView('daw');
+          showToast(`Added decoded "${recipe.name}" to DAW`);
+        }}
+      />
 
       <ConfirmDialog
         open={soundPendingDelete !== null}

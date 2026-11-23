@@ -1,5 +1,15 @@
-import { generateToneJsCode, generateVanillaWebAudioCode } from './codeGenerator';
-import type { Playlist, SoundLayer, SoundRecipe } from './types';
+import {
+  analyzeAudioArrayBufferToRecipe,
+  analyzePcmToSoundRecipe,
+  decodeBase64ToArrayBuffer,
+} from './audioToLayers';
+import {
+  generateDawToneJsCode,
+  generateDawVanillaWebAudioCode,
+  generateToneJsCode,
+  generateVanillaWebAudioCode,
+} from './codeGenerator';
+import type { DawNoteStep, DawProject, Playlist, SoundLayer, SoundRecipe } from './types';
 
 export interface WebMCPToolDefinition {
   name: string;
@@ -31,6 +41,13 @@ export interface SoundMachineBridgeHandlers {
   playActive: () => Promise<number>;
   saveAsNew: () => SoundRecipe;
   downloadActiveJson: () => void;
+  getDawProject: () => DawProject;
+  setDawProject: (project: DawProject) => void;
+  playDawProject: () => Promise<void>;
+  stopDawProject: () => void;
+  playPianoNotes: (
+    notes: Array<{ midiNote: number; durationMs?: number; delayMs?: number; velocity?: number }>
+  ) => Promise<number>;
 }
 
 function getNativeModelContext(): {
@@ -274,6 +291,239 @@ export function registerSoundMachineWebMCP(handlers: SoundMachineBridgeHandlers)
       execute: () => {
         const saved = handlers.saveAsNew();
         return { savedId: saved.id, name: saved.name, playlistId: saved.playlistId };
+      },
+    },
+    {
+      name: 'get_daw_project',
+      description: 'Inspect the current DAW project (tracks 1-8, BPM, stepCount, loop, and programmed steps).',
+      inputSchema: { type: 'object', properties: {} },
+      annotations: { readOnlyHint: true },
+      execute: () => handlers.getDawProject(),
+    },
+    {
+      name: 'configure_daw_project',
+      description:
+        'Update DAW project metadata (name, bpm, stepCount 16 or 32, loop) or replace tracks (min 1, max 8 tracks).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          bpm: { type: 'number' },
+          stepCount: { type: 'number', enum: [16, 32] },
+          loop: { type: 'boolean' },
+        },
+      },
+      execute: (args) => {
+        const current = JSON.parse(JSON.stringify(handlers.getDawProject())) as DawProject;
+        if (typeof args.name === 'string' && args.name.trim()) current.name = args.name.trim();
+        if (typeof args.bpm === 'number') current.bpm = Math.max(60, Math.min(200, args.bpm));
+        if (args.stepCount === 16 || args.stepCount === 32) current.stepCount = args.stepCount;
+        if (typeof args.loop === 'boolean') current.loop = args.loop;
+        handlers.setDawProject(current);
+        return { name: current.name, bpm: current.bpm, stepCount: current.stepCount, trackCount: current.tracks.length };
+      },
+    },
+    {
+      name: 'add_daw_track',
+      description: 'Add a new track to the DAW (maximum 8 tracks) using a sound recipe id or name.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          recipeIdOrName: { type: 'string' },
+        },
+      },
+      execute: (args) => {
+        const current = JSON.parse(JSON.stringify(handlers.getDawProject())) as DawProject;
+        if (current.tracks.length >= 8) {
+          return { error: 'Maximum of 8 tracks reached.' };
+        }
+        const sounds = handlers.getSounds();
+        const query = String(args.recipeIdOrName || '').trim().toLowerCase();
+        const chosen =
+          sounds.find((s) => s.id.toLowerCase() === query || s.name.toLowerCase() === query) ??
+          handlers.getActiveRecipe();
+        const newTrack = {
+          id: `daw-track-${Date.now()}-${current.tracks.length}`,
+          name: String(args.name || `Track ${current.tracks.length + 1}`),
+          recipeId: chosen.id,
+          recipeSnapshot: JSON.parse(JSON.stringify(chosen)) as SoundRecipe,
+          muted: false,
+          solo: false,
+          volumeDb: 0,
+          pan: 0,
+          steps: [],
+        };
+        current.tracks.push(newTrack);
+        handlers.setDawProject(current);
+        return { trackId: newTrack.id, name: newTrack.name, recipeId: chosen.id, trackCount: current.tracks.length };
+      },
+    },
+    {
+      name: 'remove_daw_track',
+      description: 'Remove a track from the DAW by 0-based trackIndex (minimum 1 track must remain).',
+      inputSchema: {
+        type: 'object',
+        properties: { trackIndex: { type: 'number' } },
+        required: ['trackIndex'],
+      },
+      execute: (args) => {
+        const current = JSON.parse(JSON.stringify(handlers.getDawProject())) as DawProject;
+        if (current.tracks.length <= 1) {
+          return { error: 'Minimum of 1 track is required.' };
+        }
+        const idx = Number(args.trackIndex);
+        if (!Number.isInteger(idx) || idx < 0 || idx >= current.tracks.length) {
+          return { error: `Invalid trackIndex ${args.trackIndex}.` };
+        }
+        const [removed] = current.tracks.splice(idx, 1);
+        handlers.setDawProject(current);
+        return { removed: removed.name, trackCount: current.tracks.length };
+      },
+    },
+    {
+      name: 'set_daw_track_steps',
+      description: 'Program note steps on a DAW track (by 0-based trackIndex).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          trackIndex: { type: 'number' },
+          steps: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                step: { type: 'number' },
+                midiNote: { type: 'number' },
+                velocity: { type: 'number' },
+                lengthSteps: { type: 'number' },
+              },
+              required: ['step', 'midiNote'],
+            },
+          },
+        },
+        required: ['trackIndex', 'steps'],
+      },
+      execute: (args) => {
+        const current = JSON.parse(JSON.stringify(handlers.getDawProject())) as DawProject;
+        const idx = Number(args.trackIndex);
+        if (!current.tracks[idx]) {
+          return { error: `Track index ${idx} not found.` };
+        }
+        const rawSteps = Array.isArray(args.steps) ? (args.steps as Array<Partial<DawNoteStep>>) : [];
+        current.tracks[idx].steps = rawSteps
+          .filter((s) => typeof s.step === 'number' && s.step >= 0 && s.step < current.stepCount)
+          .map((s) => ({
+            step: Math.floor(s.step!),
+            midiNote: Math.max(21, Math.min(108, Math.round(s.midiNote ?? 60))),
+            velocity: Math.max(0.1, Math.min(1, Number(s.velocity ?? 0.85))),
+            lengthSteps: Math.max(1, Math.min(current.stepCount, Math.round(s.lengthSteps ?? 1))),
+          }));
+        handlers.setDawProject(current);
+        return { track: current.tracks[idx].name, stepCount: current.tracks[idx].steps.length };
+      },
+    },
+    {
+      name: 'play_daw_project',
+      description: 'Start playing the current DAW composition.',
+      inputSchema: { type: 'object', properties: {} },
+      execute: async () => {
+        await handlers.playDawProject();
+        return { status: 'playing', name: handlers.getDawProject().name };
+      },
+    },
+    {
+      name: 'stop_daw_project',
+      description: 'Stop DAW playback.',
+      inputSchema: { type: 'object', properties: {} },
+      execute: () => {
+        handlers.stopDawProject();
+        return { status: 'stopped' };
+      },
+    },
+    {
+      name: 'export_daw_composition',
+      description: 'Export the active DAW composition as lightweight Tone.js code, Vanilla Web Audio API code, and JSON.',
+      inputSchema: { type: 'object', properties: {} },
+      annotations: { readOnlyHint: true },
+      execute: () => {
+        const project = handlers.getDawProject();
+        const sounds = handlers.getSounds();
+        const resolve = (id: string, snap?: SoundRecipe) =>
+          sounds.find((s) => s.id === id) ?? snap ?? sounds[0];
+        return {
+          project,
+          toneJsCode: generateDawToneJsCode(project, resolve),
+          vanillaWebAudioCode: generateDawVanillaWebAudioCode(project, resolve),
+        };
+      },
+    },
+    {
+      name: 'play_piano_notes',
+      description: 'Play a sequence of MIDI notes using the active Console recipe.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          notes: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                midiNote: { type: 'number' },
+                durationMs: { type: 'number' },
+                delayMs: { type: 'number' },
+                velocity: { type: 'number' },
+              },
+              required: ['midiNote'],
+            },
+          },
+        },
+        required: ['notes'],
+      },
+      execute: async (args) => {
+        const notes = Array.isArray(args.notes)
+          ? (args.notes as Array<{ midiNote: number; durationMs?: number; delayMs?: number; velocity?: number }>)
+          : [];
+        const totalMs = await handlers.playPianoNotes(notes);
+        return { playedNotes: notes.length, totalMs };
+      },
+    },
+    {
+      name: 'analyze_audio_to_layers',
+      description:
+        'Decode a monophonic .wav / audio base64 string (or raw PCM float array + sampleRate) into procedural SoundLayer[] and return a ready-to-import SoundRecipe JSON + Tone.js / Web Audio code.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'Optional name for the decoded sound.' },
+          audioBase64: { type: 'string', description: 'Base64 or data URL of a .wav/audio file.' },
+          pcmSamples: { type: 'array', items: { type: 'number' }, description: 'Optional raw mono PCM float samples (-1..1).' },
+          sampleRate: { type: 'number', description: 'Sample rate when passing pcmSamples (default 44100).' },
+          loadInConsole: { type: 'boolean', description: 'Set true to immediately load the decoded recipe into the Console.' },
+        },
+      },
+      execute: async (args) => {
+        const name = String(args.name || 'Decoded Sample');
+        let result;
+        if (typeof args.audioBase64 === 'string' && args.audioBase64.trim().length > 0) {
+          const buf = decodeBase64ToArrayBuffer(args.audioBase64);
+          result = await analyzeAudioArrayBufferToRecipe(buf, name);
+        } else if (Array.isArray(args.pcmSamples) && args.pcmSamples.length > 0) {
+          const sr = typeof args.sampleRate === 'number' ? args.sampleRate : 44100;
+          result = analyzePcmToSoundRecipe(new Float32Array(args.pcmSamples as number[]), sr, name);
+        } else {
+          return { error: 'Provide either audioBase64 or pcmSamples.' };
+        }
+
+        if (args.loadInConsole !== false) {
+          handlers.loadRecipe(result.recipe);
+        }
+        return {
+          recipe: result.recipe,
+          analysis: result.analysis,
+          toneJsCode: generateToneJsCode(result.recipe),
+          vanillaWebAudioCode: generateVanillaWebAudioCode(result.recipe),
+        };
       },
     },
   ];
