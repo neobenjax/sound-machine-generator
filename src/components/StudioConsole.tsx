@@ -97,8 +97,7 @@ export function StudioConsole({
           const h = canvas.height;
           ctx.clearRect(0, 0, w, h);
 
-          // Subtle center grid line
-          ctx.strokeStyle = 'rgba(194, 211, 214, 0.18)';
+          ctx.strokeStyle = 'rgba(71, 85, 105, 0.45)';
           ctx.lineWidth = 1;
           ctx.beginPath();
           ctx.moveTo(0, h / 2);
@@ -106,7 +105,7 @@ export function StudioConsole({
           ctx.stroke();
 
           const samples = soundEngine.getWaveformData();
-          ctx.strokeStyle = '#54DDF2';
+          ctx.strokeStyle = '#22C55E';
           ctx.lineWidth = 2;
           ctx.beginPath();
           const step = w / samples.length;
@@ -150,48 +149,63 @@ export function StudioConsole({
     }));
   };
 
+  const reverbMix = recipe.reverbMix ?? 0;
+  const reverbDecay = recipe.reverbDecaySec ?? 0.65;
+
   return (
-    <section className={`console-panel ${className}`} aria-label="Sound composer console">
-      <div className="surface-card console-header">
-        <div className="console-title-row">
-          <div style={{ flex: 1, minInlineSize: '200px' }}>
+    <section
+      className={`flex flex-col gap-4 ${className}`}
+      aria-label="Sound composer console"
+    >
+      {/* Master Header & Transport Rack */}
+      <div className="rounded-xl border border-[#334155] bg-[#1B2336] p-4 sm:p-5">
+        <div className="flex flex-col gap-3">
+          <div className="min-w-0">
+            <label htmlFor="recipe-name-input" className="sr-only">
+              Sound name
+            </label>
             <input
+              id="recipe-name-input"
               type="text"
-              className="console-name-input"
               value={recipe.name}
               onChange={(e) => onUpdateRecipe((prev) => ({ ...prev, name: e.target.value }))}
-              aria-label="Sound name"
+              className="w-full rounded-md border border-transparent bg-transparent px-1 py-0.5 font-display text-lg font-bold text-[#F8FAFC] transition-colors hover:border-[#334155] focus:border-[#22C55E] focus:bg-[#0F172A] sm:text-xl"
             />
+            <label htmlFor="recipe-desc-input" className="sr-only">
+              Sound description
+            </label>
             <input
+              id="recipe-desc-input"
               type="text"
               value={recipe.description}
-              onChange={(e) => onUpdateRecipe((prev) => ({ ...prev, description: e.target.value }))}
-              aria-label="Sound description"
-              style={{
-                display: 'block',
-                inlineSize: '100%',
-                border: 'none',
-                background: 'transparent',
-                fontSize: 'var(--text-sm)',
-                color: 'var(--color-text-secondary)',
-                padding: '2px 0',
-              }}
+              onChange={(e) =>
+                onUpdateRecipe((prev) => ({ ...prev, description: e.target.value }))
+              }
+              className="mt-1 w-full rounded-md border border-transparent bg-transparent px-1 py-0.5 text-sm text-[#CBD5E1] transition-colors hover:border-[#334155] focus:border-[#22C55E] focus:bg-[#0F172A]"
             />
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <div className="flex flex-wrap items-center gap-2">
             {recipe.isCustom && (
-              <button type="button" className="btn-primary" onClick={onSaveModification} disabled={!isDirty}>
-                <Save size={15} />
+              <button
+                type="button"
+                onClick={onSaveModification}
+                disabled={!isDirty}
+                className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg bg-[#22C55E] px-3 py-1.5 text-xs font-semibold text-[#0F172A] transition-opacity duration-150 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45 sm:text-sm"
+              >
+                <Save size={15} aria-hidden="true" />
                 <span>Save Changes</span>
               </button>
             )}
+
+            <label htmlFor="target-playlist-select" className="sr-only">
+              Target playlist for saving
+            </label>
             <select
-              className="select-control"
+              id="target-playlist-select"
               value={targetPlaylistId}
               onChange={(e) => onChangeTargetPlaylist(e.target.value)}
-              aria-label="Target playlist for saving"
-              title="Target playlist when saving"
+              className="min-h-9 cursor-pointer rounded-lg border border-[#475569] bg-[#0F172A] px-2.5 py-1.5 text-xs font-medium text-[#F8FAFC] sm:text-sm"
             >
               {customPlaylists.map((pl) => (
                 <option key={pl.id} value={pl.id}>
@@ -199,243 +213,363 @@ export function StudioConsole({
                 </option>
               ))}
             </select>
-            <button type="button" className="btn-secondary" onClick={onSaveAsNew}>
-              <Plus size={15} />
-              <span>Save as New</span>
-            </button>
-            <button type="button" className="btn-icon" onClick={onReset} title="Reset modifications">
-              <RotateCcw size={15} />
-            </button>
-            <button type="button" className="btn-icon" onClick={onExportSingle} title="Export this sound as JSON">
-              <Download size={15} />
+
+            <button
+              type="button"
+              onClick={onSaveAsNew}
+              className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-[#22C55E]/50 bg-[#22C55E]/15 px-3 py-1.5 text-xs font-semibold text-[#22C55E] transition-colors duration-150 hover:bg-[#22C55E] hover:text-[#0F172A] sm:text-sm"
+            >
+              <Save size={15} aria-hidden="true" />
+              <span>Save As New</span>
             </button>
           </div>
         </div>
 
-        <div className="transport-bar">
-          <button type="button" className="btn-pill" onClick={onPlay}>
-            <Play size={16} fill="currentColor" />
-            <span>Audition Sound</span>
-          </button>
+        {/* Oscilloscope */}
+        <div className="mt-4 overflow-hidden rounded-lg border border-[#334155] bg-[#0F172A] p-2">
+          <div className="mb-1 flex items-center justify-between px-1">
+            <span className="font-display text-xs font-medium text-[#94A3B8]">
+              Real-time Oscilloscope
+            </span>
+            <span className="font-display text-xs tabular-nums text-[#22C55E]">
+              {recipe.layers.filter((l) => l.enabled).length}/{recipe.layers.length} active layers
+            </span>
+          </div>
+          <canvas
+            ref={canvasRef}
+            width={640}
+            height={84}
+            className="block h-20 w-full rounded bg-[#0F172A]"
+            aria-label="Live audio waveform oscilloscope"
+          />
+        </div>
 
-          <button
-            type="button"
-            className="btn-secondary"
-            onClick={onToggleLoop}
-            aria-pressed={isLooping}
-            style={
-              isLooping
-                ? { backgroundColor: 'var(--color-accent)', color: 'var(--color-on-primary)', borderColor: 'var(--color-accent)' }
-                : undefined
-            }
-          >
-            <Repeat size={15} />
-            <span>{isLooping ? 'Looping' : 'Loop'}</span>
-          </button>
+        {/* Transport & Master Controls */}
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={onPlay}
+              className="flex min-h-10 cursor-pointer items-center gap-2 rounded-lg bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#0F172A] transition-opacity duration-150 hover:opacity-90"
+            >
+              <Play size={16} aria-hidden="true" />
+              <span>Audition (Space)</span>
+            </button>
 
-          <button type="button" className="btn-secondary" onClick={onStop}>
-            <Square size={14} />
-            <span>Stop</span>
-          </button>
+            <button
+              type="button"
+              onClick={onStop}
+              aria-label="Stop playback"
+              className="flex min-h-10 cursor-pointer items-center gap-1.5 rounded-lg border border-[#475569] bg-[#272F42] px-3 py-2 text-sm font-medium text-[#F8FAFC] transition-colors duration-150 hover:border-[#64748B] hover:bg-[#334155]"
+            >
+              <Square size={14} aria-hidden="true" />
+              <span>Stop</span>
+            </button>
 
-          <div style={{ marginInlineStart: 'auto', display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minInlineSize: '155px' }}>
-              <span className="control-label" style={{ whiteSpace: 'nowrap' }}>
-                Reverb: <strong className="control-value">{Math.round((recipe.reverbMix ?? 0) * 100)}%</strong>
-              </span>
-              <input
-                type="range"
-                min={0}
-                max={0.6}
-                step={0.02}
-                value={recipe.reverbMix ?? 0}
-                onChange={(e) =>
-                  onUpdateRecipe((prev) => ({ ...prev, reverbMix: Number(e.target.value) }))
-                }
-                aria-label="Procedural stereo reverb mix"
-              />
-            </div>
+            <button
+              type="button"
+              onClick={onToggleLoop}
+              aria-pressed={isLooping}
+              className={`flex min-h-10 cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors duration-150 ${
+                isLooping
+                  ? 'border-[#22C55E] bg-[#22C55E]/15 text-[#22C55E]'
+                  : 'border-[#475569] bg-[#272F42] text-[#CBD5E1] hover:border-[#64748B] hover:text-[#F8FAFC]'
+              }`}
+            >
+              <Repeat size={14} aria-hidden="true" />
+              <span>{isLooping ? 'Looping' : 'Loop'}</span>
+            </button>
+          </div>
 
-            {(recipe.reverbMix ?? 0) > 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minInlineSize: '150px' }}>
-                <span className="control-label" style={{ whiteSpace: 'nowrap' }}>
-                  Tail: <strong className="control-value">{(recipe.reverbDecaySec ?? 0.65).toFixed(2)}s</strong>
-                </span>
-                <input
-                  type="range"
-                  min={0.15}
-                  max={2.5}
-                  step={0.05}
-                  value={recipe.reverbDecaySec ?? 0.65}
-                  onChange={(e) =>
-                    onUpdateRecipe((prev) => ({ ...prev, reverbDecaySec: Number(e.target.value) }))
-                  }
-                  aria-label="Reverb tail decay in seconds"
-                />
-              </div>
-            )}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={onReset}
+              disabled={!isDirty}
+              className="flex min-h-10 cursor-pointer items-center gap-1.5 rounded-lg border border-[#475569] bg-[#0F172A] px-3 py-2 text-xs font-medium text-[#CBD5E1] transition-colors duration-150 hover:border-[#64748B] hover:text-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm"
+            >
+              <RotateCcw size={14} aria-hidden="true" />
+              <span>Reset</span>
+            </button>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minInlineSize: '170px' }}>
-              <span className="control-label" style={{ whiteSpace: 'nowrap' }}>
-                Master: <strong className="control-value">{recipe.masterVolumeDb} dB</strong>
-              </span>
-              <input
-                type="range"
-                min={-24}
-                max={0}
-                step={1}
-                value={recipe.masterVolumeDb}
-                onChange={(e) =>
-                  onUpdateRecipe((prev) => ({ ...prev, masterVolumeDb: Number(e.target.value) }))
-                }
-                aria-label="Master volume in decibels"
-              />
-            </div>
+            <button
+              type="button"
+              onClick={onExportSingle}
+              className="flex min-h-10 cursor-pointer items-center gap-1.5 rounded-lg border border-[#475569] bg-[#0F172A] px-3 py-2 text-xs font-medium text-[#F8FAFC] transition-colors duration-150 hover:border-[#22C55E] hover:text-[#22C55E] sm:text-sm"
+            >
+              <Download size={14} aria-hidden="true" />
+              <span>Export JSON</span>
+            </button>
           </div>
         </div>
 
-        <div className="oscilloscope-wrap">
-          <canvas ref={canvasRef} className="oscilloscope-canvas" width={640} height={110} />
-          <span className="oscilloscope-label">REAL-TIME WEB AUDIO WAVEFORM</span>
+        {/* Master Bus & Stereo Reverb */}
+        <div className="mt-4 grid grid-cols-1 gap-3 rounded-lg border border-[#334155] bg-[#0F172A]/80 p-3 sm:grid-cols-3">
+          <div>
+            <div className="mb-1.5 flex items-center justify-between text-xs">
+              <label htmlFor="master-vol-slider" className="font-medium text-[#CBD5E1]">
+                Master Gain
+              </label>
+              <span className="font-display font-semibold tabular-nums text-[#F8FAFC]">
+                {recipe.masterVolumeDb} dB
+              </span>
+            </div>
+            <input
+              id="master-vol-slider"
+              type="range"
+              className="studio-slider"
+              min={-24}
+              max={0}
+              step={1}
+              value={recipe.masterVolumeDb}
+              onChange={(e) =>
+                onUpdateRecipe((prev) => ({ ...prev, masterVolumeDb: Number(e.target.value) }))
+              }
+            />
+          </div>
+
+          <div>
+            <div className="mb-1.5 flex items-center justify-between text-xs">
+              <label htmlFor="reverb-mix-slider" className="font-medium text-[#CBD5E1]">
+                Stereo Reverb Mix
+              </label>
+              <span className="font-display font-semibold tabular-nums text-[#F8FAFC]">
+                {Math.round(reverbMix * 100)}%
+              </span>
+            </div>
+            <input
+              id="reverb-mix-slider"
+              type="range"
+              className="studio-slider"
+              min={0}
+              max={0.6}
+              step={0.02}
+              value={reverbMix}
+              onChange={(e) =>
+                onUpdateRecipe((prev) => ({ ...prev, reverbMix: Number(e.target.value) }))
+              }
+            />
+          </div>
+
+          <div>
+            <div className="mb-1.5 flex items-center justify-between text-xs">
+              <label htmlFor="reverb-decay-slider" className="font-medium text-[#CBD5E1]">
+                Reverb Decay
+              </label>
+              <span className="font-display font-semibold tabular-nums text-[#F8FAFC]">
+                {reverbDecay.toFixed(2)} s
+              </span>
+            </div>
+            <input
+              id="reverb-decay-slider"
+              type="range"
+              className="studio-slider"
+              min={0.15}
+              max={2.5}
+              step={0.05}
+              value={reverbDecay}
+              onChange={(e) =>
+                onUpdateRecipe((prev) => ({ ...prev, reverbDecaySec: Number(e.target.value) }))
+              }
+            />
+          </div>
         </div>
       </div>
 
-      <div className="layers-section">
-        <div className="section-header">
-          <h2 className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Layers size={18} />
-            <span>Synthesis Layer Rack ({recipe.layers.length})</span>
+      {/* Synthesis Layers */}
+      <div className="flex items-center justify-between gap-2 px-1">
+        <div className="flex items-center gap-2">
+          <Layers size={16} className="text-[#22C55E]" aria-hidden="true" />
+          <h2 className="font-display text-sm font-semibold text-[#F8FAFC]">
+            Synthesis Layers ({recipe.layers.length})
           </h2>
-          <button
-            type="button"
-            className="btn-secondary"
-            onClick={() =>
-              onUpdateRecipe((prev) => ({
-                ...prev,
-                layers: [...prev.layers, createDefaultLayer(prev.layers.length)],
-              }))
-            }
-          >
-            <Plus size={15} />
-            <span>Add Layer</span>
-          </button>
         </div>
 
-        {recipe.layers.map((layer) => (
-          <article key={layer.id} className={`surface-card layer-card ${!layer.enabled ? 'muted' : ''}`}>
-            <div className="layer-top">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                <span className="layer-badge">{layer.type.toUpperCase()}</span>
+        <button
+          type="button"
+          onClick={() =>
+            onUpdateRecipe((prev) => ({
+              ...prev,
+              layers: [...prev.layers, createDefaultLayer(prev.layers.length)],
+            }))
+          }
+          className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-[#475569] bg-[#1B2336] px-3 py-1.5 text-xs font-semibold text-[#F8FAFC] transition-colors duration-150 hover:border-[#22C55E] hover:text-[#22C55E]"
+        >
+          <Plus size={14} aria-hidden="true" />
+          <span>Add Layer</span>
+        </button>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        {recipe.layers.map((layer, index) => (
+          <article
+            key={layer.id}
+            className={`rounded-xl border p-4 transition-colors duration-150 ${
+              layer.enabled
+                ? 'border-[#334155] bg-[#1B2336]'
+                : 'border-[#334155]/60 bg-[#1B2336]/50 opacity-75'
+            }`}
+          >
+            {/* Layer Header */}
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#334155] pb-3">
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <span className="rounded border border-[#475569] bg-[#0F172A] px-2 py-0.5 font-display text-xs font-semibold tabular-nums text-[#22C55E]">
+                  L{index + 1}
+                </span>
+                <label htmlFor={`layer-name-${layer.id}`} className="sr-only">
+                  Layer {index + 1} name
+                </label>
                 <input
+                  id={`layer-name-${layer.id}`}
                   type="text"
                   value={layer.name}
                   onChange={(e) => updateLayer(layer.id, { name: e.target.value })}
-                  aria-label="Layer name"
-                  style={{
-                    fontWeight: 600,
-                    fontSize: 'var(--text-sm)',
-                    padding: '4px 8px',
-                    inlineSize: '170px',
-                  }}
+                  className="min-w-0 flex-1 rounded border border-transparent bg-transparent px-1.5 py-0.5 text-sm font-semibold text-[#F8FAFC] hover:border-[#334155] focus:border-[#22C55E] focus:bg-[#0F172A]"
                 />
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div className="flex items-center gap-1.5">
                 <button
                   type="button"
-                  className="btn-icon"
                   onClick={() => updateLayer(layer.id, { enabled: !layer.enabled })}
-                  title={layer.enabled ? 'Mute layer' : 'Unmute layer'}
-                  aria-pressed={!layer.enabled}
+                  aria-pressed={layer.enabled}
+                  aria-label={layer.enabled ? `Mute ${layer.name}` : `Enable ${layer.name}`}
+                  title={layer.enabled ? 'Mute layer' : 'Enable layer'}
+                  className={`flex size-8 cursor-pointer items-center justify-center rounded-md border transition-colors duration-150 ${
+                    layer.enabled
+                      ? 'border-[#22C55E]/40 bg-[#22C55E]/15 text-[#22C55E]'
+                      : 'border-[#475569] bg-[#272F42] text-[#94A3B8]'
+                  }`}
                 >
-                  {layer.enabled ? <Volume2 size={15} /> : <VolumeX size={15} />}
+                  {layer.enabled ? (
+                    <Volume2 size={14} aria-hidden="true" />
+                  ) : (
+                    <VolumeX size={14} aria-hidden="true" />
+                  )}
                 </button>
+
                 <button
                   type="button"
-                  className="btn-icon"
                   onClick={() => updateLayer(layer.id, { solo: !layer.solo })}
-                  title="Solo layer"
                   aria-pressed={layer.solo}
-                  style={
+                  aria-label={`Solo ${layer.name}`}
+                  title="Solo layer"
+                  className={`flex size-8 cursor-pointer items-center justify-center rounded-md border transition-colors duration-150 ${
                     layer.solo
-                      ? { backgroundColor: 'var(--color-accent)', color: 'var(--color-on-primary)' }
-                      : undefined
-                  }
+                      ? 'border-[#F59E0B] bg-[#F59E0B]/20 text-[#F59E0B]'
+                      : 'border-[#475569] bg-[#272F42] text-[#94A3B8] hover:text-[#F8FAFC]'
+                  }`}
                 >
-                  <Headphones size={15} />
+                  <Headphones size={14} aria-hidden="true" />
                 </button>
+
                 <button
                   type="button"
-                  className="btn-icon"
                   onClick={() => duplicateLayer(layer)}
+                  aria-label={`Duplicate ${layer.name}`}
                   title="Duplicate layer"
+                  className="flex size-8 cursor-pointer items-center justify-center rounded-md border border-[#475569] bg-[#272F42] text-[#CBD5E1] transition-colors duration-150 hover:border-[#22C55E] hover:text-[#22C55E]"
                 >
-                  <Copy size={15} />
+                  <Copy size={14} aria-hidden="true" />
                 </button>
-                <button
-                  type="button"
-                  className="btn-icon btn-danger"
-                  onClick={() => removeLayer(layer.id)}
-                  disabled={recipe.layers.length <= 1}
-                  title="Remove layer"
-                >
-                  <Trash2 size={15} />
-                </button>
+
+                {recipe.layers.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeLayer(layer.id)}
+                    aria-label={`Remove ${layer.name}`}
+                    title="Remove layer"
+                    className="flex size-8 cursor-pointer items-center justify-center rounded-md border border-[#475569] bg-[#272F42] text-[#94A3B8] transition-colors duration-150 hover:border-[#EF4444] hover:bg-[#EF4444]/15 hover:text-[#EF4444]"
+                  >
+                    <Trash2 size={14} aria-hidden="true" />
+                  </button>
+                )}
               </div>
             </div>
 
-            <div className="controls-grid">
-              <div className="control-group">
-                <label className="control-label">Generator Type</label>
+            {/* Source & Timing Controls */}
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div>
+                <label
+                  htmlFor={`type-${layer.id}`}
+                  className="mb-1 block text-xs font-medium text-[#CBD5E1]"
+                >
+                  Generator
+                </label>
                 <select
-                  className="select-control"
+                  id={`type-${layer.id}`}
                   value={layer.type}
-                  onChange={(e) => updateLayer(layer.id, { type: e.target.value as GeneratorType })}
+                  onChange={(e) =>
+                    updateLayer(layer.id, { type: e.target.value as GeneratorType })
+                  }
+                  className="w-full cursor-pointer rounded-lg border border-[#475569] bg-[#0F172A] px-2.5 py-1.5 text-sm text-[#F8FAFC]"
                 >
                   <option value="tone">Tone Oscillator</option>
+                  <option value="fm">FM Synth</option>
                   <option value="noise">Noise Generator</option>
-                  <option value="fm">FM Bell / Metallic</option>
                 </select>
               </div>
 
               {layer.type === 'noise' ? (
-                <div className="control-group">
-                  <label className="control-label">Noise Color</label>
-                  <select
-                    className="select-control"
-                    value={layer.noiseType}
-                    onChange={(e) => updateLayer(layer.id, { noiseType: e.target.value as NoiseShape })}
+                <div>
+                  <label
+                    htmlFor={`noise-${layer.id}`}
+                    className="mb-1 block text-xs font-medium text-[#CBD5E1]"
                   >
-                    <option value="white">White (Crisp Paper)</option>
-                    <option value="pink">Pink (Soft Felt)</option>
-                    <option value="brown">Brown (Warm Thud)</option>
+                    Noise Color
+                  </label>
+                  <select
+                    id={`noise-${layer.id}`}
+                    value={layer.noiseType}
+                    onChange={(e) =>
+                      updateLayer(layer.id, { noiseType: e.target.value as NoiseShape })
+                    }
+                    className="w-full cursor-pointer rounded-lg border border-[#475569] bg-[#0F172A] px-2.5 py-1.5 text-sm text-[#F8FAFC]"
+                  >
+                    <option value="white">White</option>
+                    <option value="pink">Pink</option>
+                    <option value="brown">Brown</option>
                   </select>
                 </div>
               ) : (
-                <div className="control-group">
-                  <label className="control-label">Waveform</label>
+                <div>
+                  <label
+                    htmlFor={`osc-${layer.id}`}
+                    className="mb-1 block text-xs font-medium text-[#CBD5E1]"
+                  >
+                    Waveform
+                  </label>
                   <select
-                    className="select-control"
+                    id={`osc-${layer.id}`}
                     value={layer.oscillatorType}
                     onChange={(e) =>
-                      updateLayer(layer.id, { oscillatorType: e.target.value as OscillatorShape })
+                      updateLayer(layer.id, {
+                        oscillatorType: e.target.value as OscillatorShape,
+                      })
                     }
+                    className="w-full cursor-pointer rounded-lg border border-[#475569] bg-[#0F172A] px-2.5 py-1.5 text-sm text-[#F8FAFC]"
                   >
-                    <option value="sine">Sine (Pure / Sub)</option>
-                    <option value="triangle">Triangle (Woody / Card)</option>
-                    <option value="sawtooth">Sawtooth (Buzzy / Brass)</option>
-                    <option value="square">Square (Retro / Chiptune)</option>
+                    <option value="sine">Sine</option>
+                    <option value="triangle">Triangle</option>
+                    <option value="sawtooth">Sawtooth</option>
+                    <option value="square">Square</option>
                   </select>
                 </div>
               )}
 
-              <div className="control-group">
-                <label className="control-label">
-                  <span>Delay Offset</span>
-                  <span className="control-value">{layer.delayMs} ms</span>
-                </label>
+              <div>
+                <div className="mb-1 flex items-center justify-between text-xs">
+                  <label htmlFor={`delay-${layer.id}`} className="font-medium text-[#CBD5E1]">
+                    Delay
+                  </label>
+                  <span className="font-display font-semibold tabular-nums text-[#F8FAFC]">
+                    {layer.delayMs} ms
+                  </span>
+                </div>
                 <input
+                  id={`delay-${layer.id}`}
                   type="range"
+                  className="studio-slider"
                   min={0}
                   max={1000}
                   step={5}
@@ -444,164 +578,211 @@ export function StudioConsole({
                 />
               </div>
 
-              <div className="control-group">
-                <label className="control-label">
-                  <span>Duration</span>
-                  <span className="control-value">{layer.durationMs} ms</span>
-                </label>
+              <div>
+                <div className="mb-1 flex items-center justify-between text-xs">
+                  <label htmlFor={`dur-${layer.id}`} className="font-medium text-[#CBD5E1]">
+                    Duration
+                  </label>
+                  <span className="font-display font-semibold tabular-nums text-[#F8FAFC]">
+                    {layer.durationMs} ms
+                  </span>
+                </div>
                 <input
+                  id={`dur-${layer.id}`}
                   type="range"
-                  min={10}
-                  max={1200}
+                  className="studio-slider"
+                  min={15}
+                  max={2500}
                   step={5}
                   value={layer.durationMs}
                   onChange={(e) => updateLayer(layer.id, { durationMs: Number(e.target.value) })}
                 />
               </div>
+            </div>
 
-              {layer.type !== 'noise' && (
-                <>
-                  <div className="control-group">
-                    <label className="control-label">
-                      <span>Start Freq</span>
-                      <span className="control-value">{Math.round(layer.frequency)} Hz</span>
+            {/* Pitch & FM / Unison Controls */}
+            {layer.type !== 'noise' && (
+              <div className="mt-3 grid grid-cols-1 gap-3 rounded-lg border border-[#334155]/80 bg-[#0F172A]/60 p-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div>
+                  <div className="mb-1 flex items-center justify-between text-xs">
+                    <label htmlFor={`freq-${layer.id}`} className="font-medium text-[#CBD5E1]">
+                      Start Pitch
                     </label>
-                    <input
-                      type="range"
-                      min={40}
-                      max={4000}
-                      step={5}
-                      value={layer.frequency}
-                      onChange={(e) => updateLayer(layer.id, { frequency: Number(e.target.value) })}
-                    />
+                    <span className="font-display font-semibold tabular-nums text-[#F8FAFC]">
+                      {layer.frequency} Hz
+                    </span>
                   </div>
+                  <input
+                    id={`freq-${layer.id}`}
+                    type="range"
+                    className="studio-slider"
+                    min={30}
+                    max={4000}
+                    step={5}
+                    value={layer.frequency}
+                    onChange={(e) => updateLayer(layer.id, { frequency: Number(e.target.value) })}
+                  />
+                </div>
 
-                  <div className="control-group">
-                    <label className="control-label">
-                      <span>End Freq (Sweep)</span>
-                      <span className="control-value">{Math.round(layer.frequencyEnd)} Hz</span>
+                <div>
+                  <div className="mb-1 flex items-center justify-between text-xs">
+                    <label htmlFor={`freq-end-${layer.id}`} className="font-medium text-[#CBD5E1]">
+                      End Pitch
                     </label>
-                    <input
-                      type="range"
-                      min={30}
-                      max={4000}
-                      step={5}
-                      value={layer.frequencyEnd}
-                      onChange={(e) => updateLayer(layer.id, { frequencyEnd: Number(e.target.value) })}
-                    />
+                    <span className="font-display font-semibold tabular-nums text-[#F8FAFC]">
+                      {layer.frequencyEnd} Hz
+                    </span>
                   </div>
-                </>
-              )}
+                  <input
+                    id={`freq-end-${layer.id}`}
+                    type="range"
+                    className="studio-slider"
+                    min={30}
+                    max={4000}
+                    step={5}
+                    value={layer.frequencyEnd}
+                    onChange={(e) =>
+                      updateLayer(layer.id, { frequencyEnd: Number(e.target.value) })
+                    }
+                  />
+                </div>
 
-              {layer.type === 'fm' && (
-                <>
-                  <div className="control-group">
-                    <label className="control-label">
-                      <span>Harmonicity</span>
-                      <span className="control-value">{layer.harmonicity.toFixed(1)}</span>
+                <div>
+                  <div className="mb-1 flex items-center justify-between text-xs">
+                    <label htmlFor={`unison-${layer.id}`} className="font-medium text-[#CBD5E1]">
+                      Unison Voices
                     </label>
-                    <input
-                      type="range"
-                      min={0.5}
-                      max={8}
-                      step={0.1}
-                      value={layer.harmonicity}
-                      onChange={(e) => updateLayer(layer.id, { harmonicity: Number(e.target.value) })}
-                    />
+                    <span className="font-display font-semibold tabular-nums text-[#F8FAFC]">
+                      {layer.unisonVoices ?? 1}x
+                    </span>
                   </div>
+                  <input
+                    id={`unison-${layer.id}`}
+                    type="range"
+                    className="studio-slider"
+                    min={1}
+                    max={3}
+                    step={1}
+                    value={layer.unisonVoices ?? 1}
+                    onChange={(e) =>
+                      updateLayer(layer.id, { unisonVoices: Number(e.target.value) })
+                    }
+                  />
+                </div>
 
-                  <div className="control-group">
-                    <label className="control-label">
-                      <span>FM Mod Index</span>
-                      <span className="control-value">{layer.modulationIndex.toFixed(1)}</span>
+                <div>
+                  <div className="mb-1 flex items-center justify-between text-xs">
+                    <label htmlFor={`detune-${layer.id}`} className="font-medium text-[#CBD5E1]">
+                      Detune
                     </label>
-                    <input
-                      type="range"
-                      min={0.5}
-                      max={16}
-                      step={0.5}
-                      value={layer.modulationIndex}
-                      onChange={(e) => updateLayer(layer.id, { modulationIndex: Number(e.target.value) })}
-                    />
+                    <span className="font-display font-semibold tabular-nums text-[#F8FAFC]">
+                      {layer.detuneCents ?? 0} ct
+                    </span>
                   </div>
+                  <input
+                    id={`detune-${layer.id}`}
+                    type="range"
+                    className="studio-slider"
+                    min={0}
+                    max={45}
+                    step={1}
+                    value={layer.detuneCents ?? 0}
+                    onChange={(e) =>
+                      updateLayer(layer.id, { detuneCents: Number(e.target.value) })
+                    }
+                  />
+                </div>
 
-                  <div className="control-group">
-                    <label className="control-label">
-                      <span>FM Mod Decay</span>
-                      <span className="control-value">{Math.round(layer.fmDecayMs ?? 120)} ms</span>
-                    </label>
-                    <input
-                      type="range"
-                      min={10}
-                      max={600}
-                      step={5}
-                      value={layer.fmDecayMs ?? 120}
-                      onChange={(e) => updateLayer(layer.id, { fmDecayMs: Number(e.target.value) })}
-                    />
-                  </div>
-                </>
-              )}
-
-              {layer.type !== 'noise' && (
-                <>
-                  <div className="control-group">
-                    <label className="control-label">
-                      <span>Unison Voices</span>
-                      <span className="control-value">{layer.unisonVoices ?? 1}x</span>
-                    </label>
-                    <input
-                      type="range"
-                      min={1}
-                      max={3}
-                      step={1}
-                      value={layer.unisonVoices ?? 1}
-                      onChange={(e) => updateLayer(layer.id, { unisonVoices: Number(e.target.value) })}
-                    />
-                  </div>
-
-                  {(layer.unisonVoices ?? 1) > 1 && (
-                    <div className="control-group">
-                      <label className="control-label">
-                        <span>Detune Spread</span>
-                        <span className="control-value">{Math.round(layer.detuneCents ?? 10)} ct</span>
-                      </label>
+                {layer.type === 'fm' && (
+                  <>
+                    <div>
+                      <div className="mb-1 flex items-center justify-between text-xs">
+                        <label htmlFor={`harm-${layer.id}`} className="font-medium text-[#CBD5E1]">
+                          Harmonicity
+                        </label>
+                        <span className="font-display font-semibold tabular-nums text-[#F8FAFC]">
+                          {layer.harmonicity.toFixed(1)}
+                        </span>
+                      </div>
                       <input
+                        id={`harm-${layer.id}`}
                         type="range"
-                        min={0}
-                        max={50}
-                        step={1}
-                        value={layer.detuneCents ?? 10}
-                        onChange={(e) => updateLayer(layer.id, { detuneCents: Number(e.target.value) })}
+                        className="studio-slider"
+                        min={0.5}
+                        max={12}
+                        step={0.5}
+                        value={layer.harmonicity}
+                        onChange={(e) =>
+                          updateLayer(layer.id, { harmonicity: Number(e.target.value) })
+                        }
                       />
                     </div>
-                  )}
-                </>
-              )}
 
-              <div className="control-group">
-                <label className="control-label">Filter Type</label>
+                    <div>
+                      <div className="mb-1 flex items-center justify-between text-xs">
+                        <label htmlFor={`mod-${layer.id}`} className="font-medium text-[#CBD5E1]">
+                          Mod Index
+                        </label>
+                        <span className="font-display font-semibold tabular-nums text-[#F8FAFC]">
+                          {layer.modulationIndex.toFixed(1)}
+                        </span>
+                      </div>
+                      <input
+                        id={`mod-${layer.id}`}
+                        type="range"
+                        className="studio-slider"
+                        min={0}
+                        max={24}
+                        step={0.5}
+                        value={layer.modulationIndex}
+                        onChange={(e) =>
+                          updateLayer(layer.id, { modulationIndex: Number(e.target.value) })
+                        }
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Filter & Mix */}
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div>
+                <label
+                  htmlFor={`flt-type-${layer.id}`}
+                  className="mb-1 block text-xs font-medium text-[#CBD5E1]"
+                >
+                  Filter Type
+                </label>
                 <select
-                  className="select-control"
+                  id={`flt-type-${layer.id}`}
                   value={layer.filter.type}
                   onChange={(e) =>
                     updateLayer(layer.id, {
                       filter: { ...layer.filter, type: e.target.value as FilterShape },
                     })
                   }
+                  className="w-full cursor-pointer rounded-lg border border-[#475569] bg-[#0F172A] px-2.5 py-1.5 text-sm text-[#F8FAFC]"
                 >
                   <option value="lowpass">Lowpass</option>
-                  <option value="highpass">Highpass</option>
                   <option value="bandpass">Bandpass</option>
+                  <option value="highpass">Highpass</option>
                 </select>
               </div>
 
-              <div className="control-group">
-                <label className="control-label">
-                  <span>Filter Cutoff</span>
-                  <span className="control-value">{Math.round(layer.filter.frequency)} Hz</span>
-                </label>
+              <div>
+                <div className="mb-1 flex items-center justify-between text-xs">
+                  <label htmlFor={`flt-freq-${layer.id}`} className="font-medium text-[#CBD5E1]">
+                    Filter Cutoff
+                  </label>
+                  <span className="font-display font-semibold tabular-nums text-[#F8FAFC]">
+                    {layer.filter.frequency} Hz
+                  </span>
+                </div>
                 <input
+                  id={`flt-freq-${layer.id}`}
                   type="range"
+                  className="studio-slider"
                   min={80}
                   max={12000}
                   step={20}
@@ -614,51 +795,19 @@ export function StudioConsole({
                 />
               </div>
 
-              <div className="control-group">
-                <label className="control-label">
-                  <span>Filter Sweep End</span>
-                  <span className="control-value">{Math.round(layer.filter.frequencyEnd)} Hz</span>
-                </label>
+              <div>
+                <div className="mb-1 flex items-center justify-between text-xs">
+                  <label htmlFor={`gain-${layer.id}`} className="font-medium text-[#CBD5E1]">
+                    Layer Gain
+                  </label>
+                  <span className="font-display font-semibold tabular-nums text-[#F8FAFC]">
+                    {Math.round(layer.gain * 100)}%
+                  </span>
+                </div>
                 <input
+                  id={`gain-${layer.id}`}
                   type="range"
-                  min={80}
-                  max={12000}
-                  step={20}
-                  value={layer.filter.frequencyEnd}
-                  onChange={(e) =>
-                    updateLayer(layer.id, {
-                      filter: { ...layer.filter, frequencyEnd: Number(e.target.value) },
-                    })
-                  }
-                />
-              </div>
-
-              <div className="control-group">
-                <label className="control-label">
-                  <span>Resonance (Q)</span>
-                  <span className="control-value">{layer.filter.Q.toFixed(1)}</span>
-                </label>
-                <input
-                  type="range"
-                  min={0.2}
-                  max={12}
-                  step={0.1}
-                  value={layer.filter.Q}
-                  onChange={(e) =>
-                    updateLayer(layer.id, {
-                      filter: { ...layer.filter, Q: Number(e.target.value) },
-                    })
-                  }
-                />
-              </div>
-
-              <div className="control-group">
-                <label className="control-label">
-                  <span>Layer Gain</span>
-                  <span className="control-value">{Math.round(layer.gain * 100)}%</span>
-                </label>
-                <input
-                  type="range"
+                  className="studio-slider"
                   min={0}
                   max={1}
                   step={0.02}
@@ -667,13 +816,23 @@ export function StudioConsole({
                 />
               </div>
 
-              <div className="control-group">
-                <label className="control-label">
-                  <span>Stereo Pan</span>
-                  <span className="control-value">{layer.pan.toFixed(2)}</span>
-                </label>
+              <div>
+                <div className="mb-1 flex items-center justify-between text-xs">
+                  <label htmlFor={`pan-${layer.id}`} className="font-medium text-[#CBD5E1]">
+                    Stereo Pan
+                  </label>
+                  <span className="font-display font-semibold tabular-nums text-[#F8FAFC]">
+                    {layer.pan === 0
+                      ? 'C'
+                      : layer.pan < 0
+                        ? `L ${Math.round(Math.abs(layer.pan) * 100)}`
+                        : `R ${Math.round(layer.pan * 100)}`}
+                  </span>
+                </div>
                 <input
+                  id={`pan-${layer.id}`}
                   type="range"
+                  className="studio-slider"
                   min={-1}
                   max={1}
                   step={0.05}
@@ -683,92 +842,54 @@ export function StudioConsole({
               </div>
             </div>
 
-            <div
-              style={{
-                borderTop: '1px solid var(--border-subtle)',
-                paddingTop: '12px',
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
-                gap: '12px',
-                alignItems: 'center',
-              }}
-            >
-              <AdsrVisualizer envelope={layer.envelope} />
-
-              <div className="control-group">
-                <label className="control-label">
-                  <span>Attack</span>
-                  <span className="control-value">{Math.round(layer.envelope.attack * 1000)} ms</span>
-                </label>
-                <input
-                  type="range"
-                  min={0.001}
-                  max={0.4}
-                  step={0.002}
-                  value={layer.envelope.attack}
-                  onChange={(e) =>
-                    updateLayer(layer.id, {
-                      envelope: { ...layer.envelope, attack: Number(e.target.value) },
-                    })
-                  }
-                />
+            {/* ADSR Envelope */}
+            <div className="mt-3 grid grid-cols-1 items-center gap-3 rounded-lg border border-[#334155]/80 bg-[#0F172A]/60 p-3 md:grid-cols-5">
+              <div className="md:col-span-1">
+                <AdsrVisualizer envelope={layer.envelope} />
               </div>
 
-              <div className="control-group">
-                <label className="control-label">
-                  <span>Decay</span>
-                  <span className="control-value">{Math.round(layer.envelope.decay * 1000)} ms</span>
-                </label>
-                <input
-                  type="range"
-                  min={0.005}
-                  max={0.8}
-                  step={0.005}
-                  value={layer.envelope.decay}
-                  onChange={(e) =>
-                    updateLayer(layer.id, {
-                      envelope: { ...layer.envelope, decay: Number(e.target.value) },
-                    })
-                  }
-                />
-              </div>
-
-              <div className="control-group">
-                <label className="control-label">
-                  <span>Sustain</span>
-                  <span className="control-value">{Math.round(layer.envelope.sustain * 100)}%</span>
-                </label>
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.02}
-                  value={layer.envelope.sustain}
-                  onChange={(e) =>
-                    updateLayer(layer.id, {
-                      envelope: { ...layer.envelope, sustain: Number(e.target.value) },
-                    })
-                  }
-                />
-              </div>
-
-              <div className="control-group">
-                <label className="control-label">
-                  <span>Release</span>
-                  <span className="control-value">{Math.round(layer.envelope.release * 1000)} ms</span>
-                </label>
-                <input
-                  type="range"
-                  min={0.005}
-                  max={1.0}
-                  step={0.005}
-                  value={layer.envelope.release}
-                  onChange={(e) =>
-                    updateLayer(layer.id, {
-                      envelope: { ...layer.envelope, release: Number(e.target.value) },
-                    })
-                  }
-                />
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:col-span-4">
+                {(
+                  [
+                    { key: 'attack', label: 'Attack', min: 0.001, max: 0.5, step: 0.002 },
+                    { key: 'decay', label: 'Decay', min: 0.01, max: 1.5, step: 0.01 },
+                    { key: 'sustain', label: 'Sustain', min: 0, max: 1, step: 0.02 },
+                    { key: 'release', label: 'Release', min: 0.01, max: 1.5, step: 0.01 },
+                  ] as const
+                ).map((env) => (
+                  <div key={env.key}>
+                    <div className="mb-1 flex items-center justify-between text-xs">
+                      <label
+                        htmlFor={`env-${env.key}-${layer.id}`}
+                        className="font-medium text-[#CBD5E1]"
+                      >
+                        {env.label}
+                      </label>
+                      <span className="font-display font-semibold tabular-nums text-[#F8FAFC]">
+                        {env.key === 'sustain'
+                          ? `${Math.round(layer.envelope[env.key] * 100)}%`
+                          : `${layer.envelope[env.key].toFixed(2)}s`}
+                      </span>
+                    </div>
+                    <input
+                      id={`env-${env.key}-${layer.id}`}
+                      type="range"
+                      className="studio-slider"
+                      min={env.min}
+                      max={env.max}
+                      step={env.step}
+                      value={layer.envelope[env.key]}
+                      onChange={(e) =>
+                        updateLayer(layer.id, {
+                          envelope: {
+                            ...layer.envelope,
+                            [env.key]: Number(e.target.value),
+                          },
+                        })
+                      }
+                    />
+                  </div>
+                ))}
               </div>
             </div>
           </article>

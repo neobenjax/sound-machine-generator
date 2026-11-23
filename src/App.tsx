@@ -1,9 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CodeInspector } from './components/CodeInspector';
-import { Header, type AppView } from './components/Header';
-import { IntegrationGuide } from './components/IntegrationGuide';
-import { PlaylistSidebar } from './components/PlaylistSidebar';
-import { StudioConsole } from './components/StudioConsole';
 import { soundEngine } from './engine/audioEngine';
 import type { Playlist, SoundRecipe } from './engine/types';
 import { registerSoundMachineWebMCP, type WebMCPStatus } from './engine/webmcp';
@@ -17,6 +12,12 @@ import {
   saveCustomPlaylists,
   saveCustomSounds,
 } from './storage/localStore';
+import { CodeInspector } from './components/CodeInspector';
+import { ConfirmDialog } from './components/ConfirmDialog';
+import { Header, type AppView } from './components/Header';
+import { IntegrationGuide } from './components/IntegrationGuide';
+import { PlaylistSidebar } from './components/PlaylistSidebar';
+import { StudioConsole } from './components/StudioConsole';
 
 type MobilePane = 'playlists' | 'console' | 'code';
 
@@ -53,6 +54,7 @@ export default function App() {
   const [isLooping, setIsLooping] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [webMcpStatus, setWebMcpStatus] = useState<WebMCPStatus | null>(null);
+  const [soundPendingDelete, setSoundPendingDelete] = useState<SoundRecipe | null>(null);
   const loopTimerRef = useRef<number | null>(null);
 
   const showToast = useCallback((msg: string) => {
@@ -123,7 +125,6 @@ export default function App() {
     };
   }, [isLooping, draftRecipe, syncAudioState]);
 
-  // Spacebar shortcut to audition sound
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -184,7 +185,9 @@ export default function App() {
   const handleSaveAsNew = useCallback((): SoundRecipe => {
     const newId = `custom-${Date.now()}`;
     const suffix = draftRecipe.isCustom ? ' (Remix)' : ' (Custom)';
-    const newName = draftRecipe.name.endsWith(suffix) ? draftRecipe.name : `${draftRecipe.name}${suffix}`;
+    const newName = draftRecipe.name.endsWith(suffix)
+      ? draftRecipe.name
+      : `${draftRecipe.name}${suffix}`;
     const newSound: SoundRecipe = {
       ...cloneRecipe(draftRecipe),
       id: newId,
@@ -203,7 +206,9 @@ export default function App() {
     return newSound;
   }, [customSounds, draftRecipe, showToast, targetPlaylistId]);
 
-  const handleDeleteCustomSound = (id: string) => {
+  const confirmDeleteCustomSound = () => {
+    if (!soundPendingDelete) return;
+    const id = soundPendingDelete.id;
     const next = customSounds.filter((s) => s.id !== id);
     setCustomSounds(next);
     saveCustomSounds(next);
@@ -212,12 +217,13 @@ export default function App() {
       setBaseRecipe(fallback);
       setDraftRecipe(cloneRecipe(fallback));
     }
-    showToast('Deleted custom sound');
+    setSoundPendingDelete(null);
+    showToast(`Deleted "${soundPendingDelete.name}"`);
   };
 
   const handleExportLibrary = () => {
     downloadJsonFile('sound-machine-library.json', {
-      version: '1.0.0',
+      version: '2.0.0',
       exportedAt: new Date().toISOString(),
       playlists: customPlaylists,
       sounds: customSounds,
@@ -303,7 +309,7 @@ export default function App() {
   };
 
   return (
-    <div className="app-shell">
+    <div className="flex min-h-dvh flex-col bg-[#0F172A] text-[#F8FAFC]">
       <Header
         activeView={activeView}
         onChangeView={setActiveView}
@@ -313,40 +319,39 @@ export default function App() {
         onImportLibrary={(file) => void handleImportLibrary(file)}
       />
 
-      <main className="main-container">
+      <main className="mx-auto w-full max-w-[1600px] flex-1 px-4 py-5 sm:px-6">
         {activeView === 'studio' ? (
           <>
-            <div className="mobile-view-tabs" role="tablist" aria-label="Studio mobile panes">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={mobilePane === 'playlists'}
-                className={`mobile-view-tab ${mobilePane === 'playlists' ? 'active' : ''}`}
-                onClick={() => setMobilePane('playlists')}
-              >
-                Playlists
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={mobilePane === 'console'}
-                className={`mobile-view-tab ${mobilePane === 'console' ? 'active' : ''}`}
-                onClick={() => setMobilePane('console')}
-              >
-                Console
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={mobilePane === 'code'}
-                className={`mobile-view-tab ${mobilePane === 'code' ? 'active' : ''}`}
-                onClick={() => setMobilePane('code')}
-              >
-                Code
-              </button>
+            <div
+              className="mb-4 flex gap-1 rounded-lg border border-[#334155] bg-[#1B2336] p-1 xl:hidden"
+              role="tablist"
+              aria-label="Studio mobile panes"
+            >
+              {(
+                [
+                  { id: 'playlists', label: 'Playlists' },
+                  { id: 'console', label: 'Console' },
+                  { id: 'code', label: 'Code' },
+                ] as const
+              ).map((pane) => (
+                <button
+                  key={pane.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={mobilePane === pane.id}
+                  onClick={() => setMobilePane(pane.id)}
+                  className={`min-h-9 flex-1 cursor-pointer rounded-md text-sm font-medium transition-colors duration-150 ${
+                    mobilePane === pane.id
+                      ? 'bg-[#22C55E] font-semibold text-[#0F172A]'
+                      : 'text-[#CBD5E1] hover:bg-[#272F42] hover:text-[#F8FAFC]'
+                  }`}
+                >
+                  {pane.label}
+                </button>
+              ))}
             </div>
 
-            <div className="studio-layout">
+            <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[280px_minmax(0,1fr)_400px]">
               <PlaylistSidebar
                 playlists={allPlaylists}
                 activePlaylistId={activePlaylistId}
@@ -356,8 +361,8 @@ export default function App() {
                 selectedSoundId={draftRecipe.id}
                 onSelectSound={handleSelectSound}
                 onQuickPlay={(s) => void handleQuickPlay(s)}
-                onDeleteCustomSound={handleDeleteCustomSound}
-                className={mobilePane !== 'playlists' ? 'mobile-hidden' : ''}
+                onRequestDeleteCustomSound={setSoundPendingDelete}
+                className={mobilePane !== 'playlists' ? 'hidden xl:flex' : 'flex'}
               />
 
               <StudioConsole
@@ -379,12 +384,12 @@ export default function App() {
                   showToast('Reset to saved state');
                 }}
                 onExportSingle={handleExportSingle}
-                className={mobilePane !== 'console' ? 'mobile-hidden' : ''}
+                className={mobilePane !== 'console' ? 'hidden xl:flex' : 'flex'}
               />
 
               <CodeInspector
                 recipe={draftRecipe}
-                className={mobilePane !== 'code' ? 'mobile-hidden' : ''}
+                className={mobilePane !== 'code' ? 'hidden xl:flex' : 'flex'}
               />
             </div>
           </>
@@ -397,23 +402,20 @@ export default function App() {
         )}
       </main>
 
+      <ConfirmDialog
+        open={soundPendingDelete !== null}
+        title="Delete Custom Sound?"
+        description={`"${soundPendingDelete?.name ?? ''}" will be permanently removed from your browser library.`}
+        confirmLabel="Delete Sound"
+        onConfirm={confirmDeleteCustomSound}
+        onCancel={() => setSoundPendingDelete(null)}
+      />
+
       {toast && (
         <div
           role="status"
           aria-live="polite"
-          style={{
-            position: 'fixed',
-            bottom: '20px',
-            right: '20px',
-            zIndex: 50,
-            backgroundColor: 'var(--color-text-primary)',
-            color: 'var(--color-on-dark)',
-            padding: '10px 16px',
-            borderRadius: 'var(--radius-full)',
-            fontSize: 'var(--text-sm)',
-            fontWeight: 500,
-            boxShadow: 'var(--shadow-elevated)',
-          }}
+          className="fixed right-4 bottom-4 z-50 rounded-full border border-[#22C55E]/50 bg-[#1B2336] px-4 py-2 text-sm font-medium text-[#F8FAFC] shadow-xl"
         >
           {toast}
         </div>

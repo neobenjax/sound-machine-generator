@@ -10,8 +10,6 @@ export default defineConfig({
       input: {
         main: 'index.html',
         'website-example': 'website-example/index.html',
-        v2: 'v2/index.html',
-        'v2/website-example': 'v2/website-example/index.html',
       },
     },
   },

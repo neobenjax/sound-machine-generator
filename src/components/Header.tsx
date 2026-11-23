@@ -1,4 +1,12 @@
-import { AudioWaveform, BookOpen, Download, Sliders, Upload, Volume2 } from 'lucide-react';
+import {
+  AudioWaveform,
+  BookOpen,
+  Download,
+  ExternalLink,
+  Sliders,
+  Upload,
+  Volume2,
+} from 'lucide-react';
 
 export type AppView = 'studio' | 'integrate';
 
@@ -22,68 +30,110 @@ export function Header({
   const isReady = audioState === 'running';
 
   return (
-    <header className="global-header">
-      <div className="header-inner">
-        <div className="brand">
-          <div className="brand-mark" aria-hidden="true">
-            <AudioWaveform size={22} />
+    <header className="sticky top-0 z-40 border-b border-[#334155] bg-[#0F172A]/95 backdrop-blur-md">
+      <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
+        <div className="flex items-center gap-3">
+          <div
+            className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-[#22C55E]/40 bg-[#22C55E]/15 text-[#22C55E]"
+            aria-hidden="true"
+          >
+            <AudioWaveform size={20} />
           </div>
-          <div>
-            <h1 className="brand-title">Sound Machine</h1>
-            <p className="brand-subtitle">Procedural Web Audio &amp; Tone.js Studio</p>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h1 className="font-display text-base font-bold tracking-tight text-[#F8FAFC] sm:text-lg">
+                Sound Machine
+              </h1>
+              <span className="rounded border border-[#22C55E]/40 bg-[#22C55E]/15 px-1.5 py-0.5 font-display text-[11px] font-semibold text-[#22C55E]">
+                v2
+              </span>
+            </div>
+            <p className="truncate text-xs text-[#94A3B8]">
+              Procedural Web Audio &amp; Tone.js Studio
+            </p>
           </div>
         </div>
 
-        <nav className="header-nav" aria-label="Primary sections">
+        <nav
+          className="flex items-center gap-1 rounded-lg border border-[#334155] bg-[#1B2336] p-1"
+          aria-label="Primary sections"
+        >
           <button
             type="button"
-            className="nav-tab"
-            aria-selected={activeView === 'studio'}
+            aria-current={activeView === 'studio' ? 'page' : undefined}
             onClick={() => onChangeView('studio')}
+            className={`flex min-h-9 cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors duration-150 ${
+              activeView === 'studio'
+                ? 'bg-[#22C55E] font-semibold text-[#0F172A]'
+                : 'text-[#CBD5E1] hover:bg-[#272F42] hover:text-[#F8FAFC]'
+            }`}
           >
-            <Sliders size={16} />
-            <span>Composer Studio</span>
+            <Sliders size={15} aria-hidden="true" />
+            <span>Studio</span>
           </button>
           <button
             type="button"
-            className="nav-tab"
-            aria-selected={activeView === 'integrate'}
+            aria-current={activeView === 'integrate' ? 'page' : undefined}
             onClick={() => onChangeView('integrate')}
+            className={`flex min-h-9 cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors duration-150 ${
+              activeView === 'integrate'
+                ? 'bg-[#22C55E] font-semibold text-[#0F172A]'
+                : 'text-[#CBD5E1] hover:bg-[#272F42] hover:text-[#F8FAFC]'
+            }`}
           >
-            <BookOpen size={16} />
-            <span>Integrate &amp; AI Guide</span>
+            <BookOpen size={15} aria-hidden="true" />
+            <span>Integrate &amp; WebMCP</span>
           </button>
+          <a
+            href="./website-example/"
+            className="flex min-h-9 items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-[#CBD5E1] transition-colors duration-150 hover:bg-[#272F42] hover:text-[#F8FAFC]"
+          >
+            <span>Arcade Demo</span>
+            <ExternalLink size={14} aria-hidden="true" />
+          </a>
         </nav>
 
-        <div className="header-actions">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            className={`audio-status-btn ${isReady ? 'ready' : ''}`}
             onClick={onUnlockAudio}
             title="Browser audio requires a user gesture to unlock"
+            className={`flex min-h-9 cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors duration-150 sm:text-sm ${
+              isReady
+                ? 'border-[#22C55E]/50 bg-[#22C55E]/15 text-[#22C55E]'
+                : 'border-[#475569] bg-[#1B2336] text-[#F8FAFC] hover:border-[#22C55E]/60'
+            }`}
           >
-            <span className="status-dot" />
-            <Volume2 size={14} />
+            <span
+              className={`size-2 rounded-full ${
+                isReady ? 'bg-[#22C55E]' : 'bg-[#F59E0B]'
+              }`}
+              aria-hidden="true"
+            />
+            <Volume2 size={15} aria-hidden="true" />
             <span>{isReady ? 'Audio Ready' : 'Unlock Audio'}</span>
           </button>
 
           <button
             type="button"
-            className="btn-secondary"
             onClick={onExportLibrary}
             title="Export your custom playlists and sounds as JSON"
+            className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-[#475569] bg-[#1B2336] px-3 py-1.5 text-xs font-medium text-[#F8FAFC] transition-colors duration-150 hover:border-[#64748B] hover:bg-[#272F42] sm:text-sm"
           >
-            <Download size={16} />
+            <Download size={15} aria-hidden="true" />
             <span>Export</span>
           </button>
 
-          <label className="btn-secondary" style={{ cursor: 'pointer' }} title="Import JSON sounds">
-            <Upload size={16} />
+          <label
+            className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-[#475569] bg-[#1B2336] px-3 py-1.5 text-xs font-medium text-[#F8FAFC] transition-colors duration-150 hover:border-[#64748B] hover:bg-[#272F42] sm:text-sm"
+            title="Import JSON sounds"
+          >
+            <Upload size={15} aria-hidden="true" />
             <span>Import</span>
             <input
               type="file"
               accept=".json,application/json"
-              style={{ display: 'none' }}
+              className="sr-only"
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) {

@@ -7,9 +7,9 @@ interface AdsrVisualizerProps {
 export function AdsrVisualizer({ envelope }: AdsrVisualizerProps) {
   const { attack, decay, sustain, release } = envelope;
   const total = Math.max(0.05, attack + decay + 0.08 + release);
-  const w = 220;
-  const h = 48;
-  const pad = 4;
+  const w = 240;
+  const h = 52;
+  const pad = 5;
 
   const xA = pad + (attack / total) * (w - pad * 2);
   const xD = xA + (decay / total) * (w - pad * 2);
@@ -26,18 +26,13 @@ export function AdsrVisualizer({ envelope }: AdsrVisualizerProps) {
   return (
     <svg
       viewBox={`0 0 ${w} ${h}`}
-      width="100%"
-      height="48"
-      aria-label="ADSR Envelope Curve"
-      style={{
-        backgroundColor: 'var(--color-secondary-bg)',
-        borderRadius: 'var(--radius-sm)',
-        border: '1px solid var(--border-subtle)',
-        display: 'block',
-      }}
+      className="block h-13 w-full rounded-md border border-[#334155] bg-[#0F172A]"
+      role="img"
+      aria-label={`ADSR envelope curve: attack ${attack}s, decay ${decay}s, sustain ${sustain}, release ${release}s`}
     >
-      <path d={area} fill="var(--border-accent)" />
-      <path d={path} fill="none" stroke="var(--color-accent)" strokeWidth="2" strokeLinejoin="round" />
+      <line x1={pad} y1={h / 2} x2={w - pad} y2={h / 2} stroke="#1E293B" strokeWidth="1" />
+      <path d={area} fill="rgba(34, 197, 94, 0.16)" />
+      <path d={path} fill="none" stroke="#22C55E" strokeWidth="2" strokeLinejoin="round" />
     </svg>
   );
 }
