@@ -9,7 +9,14 @@ import {
   generateToneJsCode,
   generateVanillaWebAudioCode,
 } from './codeGenerator';
-import type { DawNoteStep, DawProject, Playlist, SoundLayer, SoundRecipe } from './types';
+import type {
+  DawNoteStep,
+  DawProject,
+  PianoRecordedNote,
+  Playlist,
+  SoundLayer,
+  SoundRecipe,
+} from './types';
 
 export interface WebMCPToolDefinition {
   name: string;
@@ -33,18 +40,46 @@ export interface WebMCPStatus {
   tools: Array<{ name: string; description: string }>;
 }
 
+export interface WebMCPRegistry {
+  status: WebMCPStatus;
+  listTools: () => Array<{
+    name: string;
+    description: string;
+    inputSchema: Record<string, unknown>;
+  }>;
+  executeTool: (name: string, args?: Record<string, unknown>) => Promise<unknown>;
+}
+
 export interface SoundMachineBridgeHandlers {
+  getActiveView: () => 'studio' | 'daw' | 'integrate';
+  setActiveView: (view: 'studio' | 'daw' | 'integrate') => void;
+  getAudioState: () => AudioContextState;
   getPlaylists: () => Playlist[];
   getSounds: () => SoundRecipe[];
   getActiveRecipe: () => SoundRecipe;
   loadRecipe: (recipe: SoundRecipe) => void;
+  updateActiveRecipe: (recipe: SoundRecipe) => void;
   playActive: () => Promise<number>;
   saveAsNew: () => SoundRecipe;
   downloadActiveJson: () => void;
   getDawProject: () => DawProject;
   setDawProject: (project: DawProject) => void;
+  getSelectedDawTrackId: () => string;
   playDawProject: () => Promise<void>;
   stopDawProject: () => void;
+  getPianoState: () => {
+    open: boolean;
+    octave: number;
+    isRecording: boolean;
+    recordedNotes: PianoRecordedNote[];
+  };
+  setPianoDrawer: (open: boolean, octave?: number) => void;
+  startPianoRecording: () => void;
+  stopPianoRecording: () => PianoRecordedNote[];
+  clearPianoRecording: () => void;
+  sendPianoRecordingToDaw: (
+    trackIndex?: number
+  ) => { sentCount: number; trackName: string; stepCount: number } | { error: string };
   playPianoNotes: (
     notes: Array<{ midiNote: number; durationMs?: number; delayMs?: number; velocity?: number }>
   ) => Promise<number>;
@@ -101,8 +136,81 @@ function normalizeLayer(raw: Partial<SoundLayer>, index: number): SoundLayer {
   };
 }
 
-export function registerSoundMachineWebMCP(handlers: SoundMachineBridgeHandlers): WebMCPStatus {
+export function registerSoundMachineWebMCP(handlers: SoundMachineBridgeHandlers): WebMCPRegistry {
   const tools: WebMCPToolDefinition[] = [
+    {
+      name: 'get_session_state',
+      description:
+        'Get the complete live state of the Sound Machine browser session: active view (studio/daw/integrate), audioState, active Studio sound recipe & layers, DAW project & tracks, and Piano drawer/recording state.',
+      inputSchema: { type: 'object', properties: {} },
+      annotations: { readOnlyHint: true },
+      execute: () => {
+        const activeRecipe = handlers.getActiveRecipe();
+        const dawProject = handlers.getDawProject();
+        const piano = handlers.getPianoState();
+        return {
+          activeView: handlers.getActiveView(),
+          audioState: handlers.getAudioState(),
+          studio: {
+            id: activeRecipe.id,
+            name: activeRecipe.name,
+            description: activeRecipe.description,
+            masterVolumeDb: activeRecipe.masterVolumeDb,
+            reverbMix: activeRecipe.reverbMix ?? 0,
+            reverbDecaySec: activeRecipe.reverbDecaySec ?? 0.65,
+            layers: activeRecipe.layers.map((layer, index) => ({
+              index,
+              ...layer,
+            })),
+          },
+          daw: {
+            id: dawProject.id,
+            name: dawProject.name,
+            bpm: dawProject.bpm,
+            stepCount: dawProject.stepCount,
+            loop: dawProject.loop,
+            selectedTrackId: handlers.getSelectedDawTrackId(),
+            tracks: dawProject.tracks.map((t, index) => ({
+              index,
+              id: t.id,
+              name: t.name,
+              recipeId: t.recipeId,
+              muted: t.muted,
+              solo: t.solo,
+              volumeDb: t.volumeDb,
+              pan: t.pan,
+              steps: t.steps,
+            })),
+          },
+          piano: {
+            open: piano.open,
+            octave: piano.octave,
+            isRecording: piano.isRecording,
+            recordedNotesCount: piano.recordedNotes.length,
+            recordedNotes: piano.recordedNotes,
+          },
+        };
+      },
+    },
+    {
+      name: 'switch_view',
+      description: 'Switch the active UI tab in Sound Machine between studio, daw, and integrate.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          view: { type: 'string', enum: ['studio', 'daw', 'integrate'] },
+        },
+        required: ['view'],
+      },
+      execute: (args) => {
+        const view = args.view;
+        if (view !== 'studio' && view !== 'daw' && view !== 'integrate') {
+          return { error: `Invalid view "${String(view)}". Expected studio, daw, or integrate.` };
+        }
+        handlers.setActiveView(view);
+        return { activeView: view };
+      },
+    },
     {
       name: 'list_sound_presets',
       description:
@@ -246,8 +354,73 @@ export function registerSoundMachineWebMCP(handlers: SoundMachineBridgeHandlers)
             filter: { ...current.layers[idx].filter, ...(patch.filter || {}) },
           };
         }
-        handlers.loadRecipe(current);
+        handlers.updateActiveRecipe(current);
         return { updated: current.name, layerCount: current.layers.length };
+      },
+    },
+    {
+      name: 'add_sound_layer',
+      description:
+        'Add a new synthesis layer (tone, noise, or fm) to the currently active Studio Console sound.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          index: {
+            type: 'number',
+            description: 'Optional 0-based insertion index. Omit to append at the end.',
+          },
+          layer: {
+            type: 'object',
+            description: 'Layer configuration (name, type, oscillatorType/noiseType, frequency, frequencyEnd, durationMs, delayMs, gain, pan, envelope, filter, etc.).',
+          },
+        },
+        required: ['layer'],
+      },
+      execute: (args) => {
+        const current = JSON.parse(JSON.stringify(handlers.getActiveRecipe())) as SoundRecipe;
+        const rawLayer = (args.layer || {}) as Partial<SoundLayer>;
+        const newLayer = normalizeLayer(rawLayer, current.layers.length);
+        if (
+          typeof args.index === 'number' &&
+          Number.isInteger(args.index) &&
+          args.index >= 0 &&
+          args.index <= current.layers.length
+        ) {
+          current.layers.splice(args.index, 0, newLayer);
+        } else {
+          current.layers.push(newLayer);
+        }
+        handlers.updateActiveRecipe(current);
+        return {
+          addedLayerId: newLayer.id,
+          name: newLayer.name,
+          layerCount: current.layers.length,
+        };
+      },
+    },
+    {
+      name: 'remove_sound_layer',
+      description:
+        'Remove a synthesis layer from the currently active Studio Console sound by 0-based layerIndex (minimum 1 layer must remain).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          layerIndex: { type: 'number', description: '0-based index of the layer to remove.' },
+        },
+        required: ['layerIndex'],
+      },
+      execute: (args) => {
+        const current = JSON.parse(JSON.stringify(handlers.getActiveRecipe())) as SoundRecipe;
+        if (current.layers.length <= 1) {
+          return { error: 'Minimum of 1 layer is required.' };
+        }
+        const idx = Number(args.layerIndex);
+        if (!Number.isInteger(idx) || idx < 0 || idx >= current.layers.length) {
+          return { error: `Invalid layerIndex ${args.layerIndex}.` };
+        }
+        const [removed] = current.layers.splice(idx, 1);
+        handlers.updateActiveRecipe(current);
+        return { removed: removed.name, layerCount: current.layers.length };
       },
     },
     {
@@ -382,6 +555,64 @@ export function registerSoundMachineWebMCP(handlers: SoundMachineBridgeHandlers)
       },
     },
     {
+      name: 'update_daw_track',
+      description:
+        'Modify an existing DAW track by 0-based trackIndex (rename, swap sound recipe, mute/solo, volumeDb, pan).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          trackIndex: { type: 'number', description: '0-based index of the DAW track.' },
+          name: { type: 'string' },
+          recipeIdOrName: { type: 'string' },
+          muted: { type: 'boolean' },
+          solo: { type: 'boolean' },
+          volumeDb: { type: 'number' },
+          pan: { type: 'number' },
+        },
+        required: ['trackIndex'],
+      },
+      execute: (args) => {
+        const current = JSON.parse(JSON.stringify(handlers.getDawProject())) as DawProject;
+        const idx = Number(args.trackIndex);
+        if (!Number.isInteger(idx) || !current.tracks[idx]) {
+          return { error: `Invalid trackIndex ${args.trackIndex}.` };
+        }
+        const track = current.tracks[idx];
+        if (typeof args.name === 'string' && args.name.trim()) {
+          track.name = args.name.trim();
+        }
+        if (typeof args.recipeIdOrName === 'string' && args.recipeIdOrName.trim()) {
+          const query = args.recipeIdOrName.trim().toLowerCase();
+          const match = handlers
+            .getSounds()
+            .find((s) => s.id.toLowerCase() === query || s.name.toLowerCase() === query);
+          if (!match) {
+            return { error: `Sound "${args.recipeIdOrName}" not found.` };
+          }
+          track.recipeId = match.id;
+          track.recipeSnapshot = JSON.parse(JSON.stringify(match)) as SoundRecipe;
+        }
+        if (typeof args.muted === 'boolean') track.muted = args.muted;
+        if (typeof args.solo === 'boolean') track.solo = args.solo;
+        if (typeof args.volumeDb === 'number') {
+          track.volumeDb = Math.max(-24, Math.min(6, args.volumeDb));
+        }
+        if (typeof args.pan === 'number') {
+          track.pan = Math.max(-1, Math.min(1, args.pan));
+        }
+        handlers.setDawProject(current);
+        return {
+          trackIndex: idx,
+          name: track.name,
+          recipeId: track.recipeId,
+          muted: track.muted,
+          solo: track.solo,
+          volumeDb: track.volumeDb,
+          pan: track.pan,
+        };
+      },
+    },
+    {
       name: 'set_daw_track_steps',
       description: 'Program note steps on a DAW track (by 0-based trackIndex).',
       inputSchema: {
@@ -459,11 +690,91 @@ export function registerSoundMachineWebMCP(handlers: SoundMachineBridgeHandlers)
       },
     },
     {
-      name: 'play_piano_notes',
-      description: 'Play a sequence of MIDI notes using the active Console recipe.',
+      name: 'set_piano_drawer',
+      description: 'Show or hide the interactive Piano Drawer keyboard and optionally set its octave (2-6).',
       inputSchema: {
         type: 'object',
         properties: {
+          open: { type: 'boolean', description: 'True to show the piano keyboard, false to hide it.' },
+          octave: { type: 'number', description: 'Optional octave (2 to 6, default 4).' },
+        },
+        required: ['open'],
+      },
+      execute: (args) => {
+        const open = Boolean(args.open);
+        const octave =
+          typeof args.octave === 'number'
+            ? Math.max(2, Math.min(6, Math.round(args.octave)))
+            : undefined;
+        handlers.setPianoDrawer(open, octave);
+        const current = handlers.getPianoState();
+        return {
+          ...current,
+          open,
+          octave: octave ?? current.octave,
+        };
+      },
+    },
+    {
+      name: 'piano_recording',
+      description:
+        'Control Piano Drawer recording: start recording, stop recording, inspect recorded notes, clear recorded notes, or send recorded notes to a DAW track.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          action: {
+            type: 'string',
+            enum: ['start', 'stop', 'get', 'clear', 'send_to_daw'],
+          },
+          trackIndex: {
+            type: 'number',
+            description: 'Optional 0-based DAW track index when action is send_to_daw.',
+          },
+        },
+        required: ['action'],
+      },
+      execute: (args) => {
+        const action = String(args.action || '');
+        if (action === 'start') {
+          handlers.setPianoDrawer(true);
+          handlers.startPianoRecording();
+          return { status: 'recording_started' };
+        }
+        if (action === 'stop') {
+          const notes = handlers.stopPianoRecording();
+          return { status: 'recording_stopped', recordedNotesCount: notes.length, notes };
+        }
+        if (action === 'get') {
+          const state = handlers.getPianoState();
+          return {
+            isRecording: state.isRecording,
+            recordedNotesCount: state.recordedNotes.length,
+            notes: state.recordedNotes,
+          };
+        }
+        if (action === 'clear') {
+          handlers.clearPianoRecording();
+          return { status: 'cleared' };
+        }
+        if (action === 'send_to_daw') {
+          const trackIndex =
+            typeof args.trackIndex === 'number' ? Math.floor(args.trackIndex) : undefined;
+          return handlers.sendPianoRecordingToDaw(trackIndex);
+        }
+        return { error: `Unknown piano_recording action "${action}".` };
+      },
+    },
+    {
+      name: 'play_piano_notes',
+      description:
+        'Play a sequence of MIDI notes using the active recipe (or selected DAW track recipe in DAW view). Visually highlights keys when the Piano Drawer is open and records notes if recording is active.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          openDrawer: {
+            type: 'boolean',
+            description: 'Set true to open the Piano Drawer while playing notes.',
+          },
           notes: {
             type: 'array',
             items: {
@@ -481,8 +792,16 @@ export function registerSoundMachineWebMCP(handlers: SoundMachineBridgeHandlers)
         required: ['notes'],
       },
       execute: async (args) => {
+        if (args.openDrawer === true) {
+          handlers.setPianoDrawer(true);
+        }
         const notes = Array.isArray(args.notes)
-          ? (args.notes as Array<{ midiNote: number; durationMs?: number; delayMs?: number; velocity?: number }>)
+          ? (args.notes as Array<{
+              midiNote: number;
+              durationMs?: number;
+              delayMs?: number;
+              velocity?: number;
+            }>)
           : [];
         const totalMs = await handlers.playPianoNotes(notes);
         return { playedNotes: notes.length, totalMs };
@@ -552,9 +871,26 @@ export function registerSoundMachineWebMCP(handlers: SoundMachineBridgeHandlers)
     })),
   };
 
-  return {
+  const status: WebMCPStatus = {
     supported: ctx !== null,
     apiSurface: surface,
     tools: tools.map((t) => ({ name: t.name, description: t.description })),
+  };
+
+  return {
+    status,
+    listTools: () =>
+      tools.map((t) => ({
+        name: t.name,
+        description: t.description,
+        inputSchema: t.inputSchema,
+      })),
+    executeTool: async (name: string, args: Record<string, unknown> = {}) => {
+      const tool = tools.find((t) => t.name === name);
+      if (!tool) {
+        throw new Error(`Unknown Sound Machine tool: ${name}`);
+      }
+      return await tool.execute(args);
+    },
   };
 }

@@ -21,6 +21,14 @@ interface PianoDrawerProps {
   open: boolean;
   recipe: SoundRecipe;
   canSendToDaw: boolean;
+  octave: number;
+  onChangeOctave: (octave: number) => void;
+  isRecording: boolean;
+  onToggleRecording: () => void;
+  recordedNotes: PianoRecordedNote[];
+  onAddRecordedNote: (note: PianoRecordedNote) => void;
+  onClearRecordedNotes: () => void;
+  externalActiveMidi?: Set<number>;
   onClose: () => void;
   onSendToDawTrack: (notes: PianoRecordedNote[]) => void;
 }
@@ -56,19 +64,30 @@ export function PianoDrawer({
   open,
   recipe,
   canSendToDaw,
+  octave,
+  onChangeOctave,
+  isRecording,
+  onToggleRecording,
+  recordedNotes,
+  onAddRecordedNote,
+  onClearRecordedNotes,
+  externalActiveMidi,
   onClose,
   onSendToDawTrack,
 }: PianoDrawerProps) {
-  const [octave, setOctave] = useState(4); // C4 = MIDI 60
   const [activeMidi, setActiveMidi] = useState<Set<number>>(new Set());
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordedNotes, setRecordedNotes] = useState<PianoRecordedNote[]>([]);
   const [showCode, setShowCode] = useState(false);
   const [codeMode, setCodeMode] = useState<'webaudio' | 'tone' | 'json'>('webaudio');
   const [copied, setCopied] = useState(false);
 
   const recordStartRef = useRef<number>(0);
   const heldStartRef = useRef<Map<number, number>>(new Map());
+
+  useEffect(() => {
+    if (isRecording) {
+      recordStartRef.current = performance.now();
+    }
+  }, [isRecording]);
 
   const baseMidi = (octave + 1) * 12;
 
@@ -98,19 +117,16 @@ export function PianoDrawer({
         const now = performance.now();
         const startMs = Math.max(0, Math.round(startAt - recordStartRef.current));
         const durationMs = Math.max(60, Math.round(now - startAt));
-        setRecordedNotes((prev) => [
-          ...prev,
-          {
-            id: `note-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
-            midiNote: midi,
-            startMs,
-            durationMs,
-            velocity: 0.85,
-          },
-        ]);
+        onAddRecordedNote({
+          id: `note-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+          midiNote: midi,
+          startMs,
+          durationMs,
+          velocity: 0.85,
+        });
       }
     },
-    [isRecording]
+    [isRecording, onAddRecordedNote]
   );
 
   useEffect(() => {
@@ -127,11 +143,11 @@ export function PianoDrawer({
 
       const lower = e.key.toLowerCase();
       if (lower === 'z') {
-        setOctave((o) => Math.max(2, o - 1));
+        onChangeOctave(Math.max(2, octave - 1));
         return;
       }
       if (lower === 'x') {
-        setOctave((o) => Math.min(6, o + 1));
+        onChangeOctave(Math.min(6, octave + 1));
         return;
       }
       const midi = keyMap.get(lower);
@@ -154,7 +170,7 @@ export function PianoDrawer({
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
     };
-  }, [open, baseMidi, triggerDown, triggerUp]);
+  }, [open, baseMidi, octave, onChangeOctave, triggerDown, triggerUp]);
 
   const codeText = useMemo(
     () => generateMelodyCode(recordedNotes, recipe, codeMode),
@@ -164,13 +180,7 @@ export function PianoDrawer({
   if (!open) return null;
 
   const toggleRecording = () => {
-    if (isRecording) {
-      setIsRecording(false);
-    } else {
-      setRecordedNotes([]);
-      recordStartRef.current = performance.now();
-      setIsRecording(true);
-    }
+    onToggleRecording();
   };
 
   const playRecording = async () => {
@@ -214,7 +224,7 @@ export function PianoDrawer({
             <div className="flex items-center gap-1 rounded-lg border border-[#334155] bg-[#0F172A] px-2 py-1 text-xs">
               <button
                 type="button"
-                onClick={() => setOctave((o) => Math.max(2, o - 1))}
+                onClick={() => onChangeOctave(Math.max(2, octave - 1))}
                 aria-label="Octave down (Z)"
                 className="cursor-pointer px-1 text-[#CBD5E1] hover:text-[#22C55E]"
               >
@@ -225,7 +235,7 @@ export function PianoDrawer({
               </span>
               <button
                 type="button"
-                onClick={() => setOctave((o) => Math.min(6, o + 1))}
+                onClick={() => onChangeOctave(Math.min(6, octave + 1))}
                 aria-label="Octave up (X)"
                 className="cursor-pointer px-1 text-[#CBD5E1] hover:text-[#22C55E]"
               >
@@ -264,7 +274,7 @@ export function PianoDrawer({
             <button
               type="button"
               disabled={recordedNotes.length === 0}
-              onClick={() => setRecordedNotes([])}
+              onClick={onClearRecordedNotes}
               className="flex min-h-8 cursor-pointer items-center gap-1 rounded-lg border border-[#475569] bg-[#272F42] px-2 py-1 text-xs text-[#CBD5E1] hover:text-red-300 disabled:opacity-40"
               title="Clear recording"
             >
@@ -348,7 +358,7 @@ export function PianoDrawer({
           <div className="flex h-full w-full">
             {whiteKeys.map((k) => {
               const midi = baseMidi + k.semitone;
-              const pressed = activeMidi.has(midi);
+              const pressed = activeMidi.has(midi) || (externalActiveMidi?.has(midi) ?? false);
               return (
                 <button
                   key={k.semitone}
@@ -371,7 +381,7 @@ export function PianoDrawer({
 
           {blackKeys.map((k) => {
             const midi = baseMidi + k.semitone;
-            const pressed = activeMidi.has(midi);
+            const pressed = activeMidi.has(midi) || (externalActiveMidi?.has(midi) ?? false);
             const leftPct = (whiteIndexBefore(k.semitone) / whiteKeys.length) * 100;
             const widthPct = (0.62 / whiteKeys.length) * 100;
             return (
