@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { soundEngine } from './engine/audioEngine';
+import {
+  RemoteAgentSession,
+  type RemoteAgentActivity,
+  type RemoteAgentStatus,
+} from './engine/remoteAgent';
 import type { DawProject, PianoRecordedNote, Playlist, SoundRecipe } from './engine/types';
 import { registerSoundMachineWebMCP, type WebMCPStatus } from './engine/webmcp';
 import { BUILT_IN_PLAYLISTS, BUILT_IN_SAMPLES } from './samples';
@@ -23,6 +28,7 @@ import { Header, type AppView } from './components/Header';
 import { IntegrationGuide } from './components/IntegrationGuide';
 import { PianoDrawer } from './components/PianoDrawer';
 import { PlaylistSidebar } from './components/PlaylistSidebar';
+import { RemoteAgentPopover } from './components/RemoteAgentPopover';
 import { StudioConsole } from './components/StudioConsole';
 import { WavImportModal } from './components/WavImportModal';
 
@@ -63,7 +69,20 @@ export default function App() {
   const [webMcpStatus, setWebMcpStatus] = useState<WebMCPStatus | null>(null);
   const [soundPendingDelete, setSoundPendingDelete] = useState<SoundRecipe | null>(null);
   const [isPianoOpen, setIsPianoOpen] = useState(false);
+  const [pianoOctave, setPianoOctave] = useState(4);
+  const [isPianoRecording, setIsPianoRecording] = useState(false);
+  const [pianoRecordedNotes, setPianoRecordedNotes] = useState<PianoRecordedNote[]>([]);
+  const [pianoExternalActiveMidi, setPianoExternalActiveMidi] = useState<Set<number>>(new Set());
   const [isWavModalOpen, setIsWavModalOpen] = useState(false);
+  const [isRemotePopoverOpen, setIsRemotePopoverOpen] = useState(false);
+  const [remoteStatus, setRemoteStatus] = useState<RemoteAgentStatus>({
+    state: 'off',
+    sessionId: null,
+    version: 0,
+  });
+  const [remoteActivities, setRemoteActivities] = useState<RemoteAgentActivity[]>([]);
+  const remoteSessionRef = useRef<RemoteAgentSession | null>(null);
+  const pianoRecStartRef = useRef<number>(0);
 
   const [dawProject, setDawProject] = useState<DawProject>(() => {
     const saved = loadDawProjects();
@@ -307,8 +326,9 @@ export default function App() {
   }, [dawProject, showToast]);
 
   const handleSendPianoNotesToDaw = useCallback(
-    (notes: PianoRecordedNote[]) => {
+    (notes: PianoRecordedNote[], targetTrackIdOverride?: string) => {
       if (notes.length === 0) return;
+      const targetId = targetTrackIdOverride ?? selectedDawTrackId;
       const sorted = [...notes].sort((a, b) => a.startMs - b.startMs);
       const firstStartMs = sorted[0].startMs;
       const stepMs = (60 / dawProject.bpm / 4) * 1000;
@@ -346,16 +366,19 @@ export default function App() {
         ...prev,
         stepCount: targetStepCount,
         tracks: prev.tracks.map((t) =>
-          t.id === selectedDawTrackId ? { ...t, steps: mappedSteps } : t
+          t.id === targetId ? { ...t, steps: mappedSteps } : t
         ),
       }));
       setActiveView('daw');
       showToast(`Sent ${mappedSteps.length} notes to DAW track (${targetStepCount} steps)`);
+      return mappedSteps.length;
     },
     [dawProject.bpm, dawProject.stepCount, selectedDawTrackId, showToast]
   );
 
   const webMcpRef = useRef({
+    activeView,
+    audioState,
     allPlaylists,
     allSounds,
     draftRecipe,
@@ -363,11 +386,20 @@ export default function App() {
     handleSaveAsNew,
     handleExportSingle,
     dawProject,
+    selectedDawTrackId,
+    isDawPlaying,
     handleToggleDawPlay,
     handleStopDaw,
     resolveDawRecipe,
+    isPianoOpen,
+    pianoOctave,
+    isPianoRecording,
+    pianoRecordedNotes,
+    handleSendPianoNotesToDaw,
   });
   webMcpRef.current = {
+    activeView,
+    audioState,
     allPlaylists,
     allSounds,
     draftRecipe,
@@ -375,13 +407,23 @@ export default function App() {
     handleSaveAsNew,
     handleExportSingle,
     dawProject,
+    selectedDawTrackId,
+    isDawPlaying,
     handleToggleDawPlay,
     handleStopDaw,
     resolveDawRecipe,
+    isPianoOpen,
+    pianoOctave,
+    isPianoRecording,
+    pianoRecordedNotes,
+    handleSendPianoNotesToDaw,
   };
 
   useEffect(() => {
-    const status = registerSoundMachineWebMCP({
+    const registry = registerSoundMachineWebMCP({
+      getActiveView: () => webMcpRef.current.activeView,
+      setActiveView: (view) => setActiveView(view),
+      getAudioState: () => webMcpRef.current.audioState,
       getPlaylists: () => webMcpRef.current.allPlaylists,
       getSounds: () => webMcpRef.current.allSounds,
       getActiveRecipe: () => webMcpRef.current.draftRecipe,
@@ -390,36 +432,161 @@ export default function App() {
         setDraftRecipe(cloneRecipe(recipe));
         setActiveView('studio');
       },
+      updateActiveRecipe: (recipe) => {
+        setDraftRecipe(cloneRecipe(recipe));
+      },
       playActive: () => webMcpRef.current.playCurrent(),
       saveAsNew: () => webMcpRef.current.handleSaveAsNew(),
       downloadActiveJson: () => webMcpRef.current.handleExportSingle(),
       getDawProject: () => webMcpRef.current.dawProject,
       setDawProject: (proj) => setDawProject(proj),
+      getSelectedDawTrackId: () => webMcpRef.current.selectedDawTrackId,
       playDawProject: async () => {
-        if (!isDawPlaying) {
+        if (!webMcpRef.current.isDawPlaying) {
           await webMcpRef.current.handleToggleDawPlay();
         }
       },
       stopDawProject: () => webMcpRef.current.handleStopDaw(),
+      getPianoState: () => ({
+        open: webMcpRef.current.isPianoOpen,
+        octave: webMcpRef.current.pianoOctave,
+        isRecording: webMcpRef.current.isPianoRecording,
+        recordedNotes: webMcpRef.current.pianoRecordedNotes,
+      }),
+      setPianoDrawer: (open, octave) => {
+        setIsPianoOpen(open);
+        if (typeof octave === 'number') {
+          setPianoOctave(octave);
+        }
+      },
+      startPianoRecording: () => {
+        setPianoRecordedNotes([]);
+        pianoRecStartRef.current = performance.now();
+        setIsPianoRecording(true);
+      },
+      stopPianoRecording: () => {
+        setIsPianoRecording(false);
+        return webMcpRef.current.pianoRecordedNotes;
+      },
+      clearPianoRecording: () => {
+        setPianoRecordedNotes([]);
+      },
+      sendPianoRecordingToDaw: (trackIndex) => {
+        const notes = webMcpRef.current.pianoRecordedNotes;
+        if (notes.length === 0) {
+          return { error: 'No recorded piano notes to send.' };
+        }
+        const proj = webMcpRef.current.dawProject;
+        const targetTrack =
+          typeof trackIndex === 'number'
+            ? proj.tracks[trackIndex]
+            : proj.tracks.find((t) => t.id === webMcpRef.current.selectedDawTrackId) ??
+              proj.tracks[0];
+        if (!targetTrack) {
+          return { error: `Invalid DAW trackIndex ${trackIndex}.` };
+        }
+        setSelectedDawTrackId(targetTrack.id);
+        const sentCount =
+          webMcpRef.current.handleSendPianoNotesToDaw(notes, targetTrack.id) ?? 0;
+        return {
+          sentCount,
+          trackName: targetTrack.name,
+          stepCount: proj.stepCount,
+        };
+      },
       playPianoNotes: async (notes) => {
-        const recipe = webMcpRef.current.draftRecipe;
+        const selectedTrack = webMcpRef.current.dawProject.tracks.find(
+          (t) => t.id === webMcpRef.current.selectedDawTrackId
+        );
+        const recipe =
+          webMcpRef.current.activeView === 'daw' && selectedTrack
+            ? (webMcpRef.current.resolveDawRecipe(
+                selectedTrack.recipeId,
+                selectedTrack.recipeSnapshot
+              ) ?? webMcpRef.current.draftRecipe)
+            : webMcpRef.current.draftRecipe;
         let maxMs = 0;
         for (const n of notes) {
           const delay = Math.max(0, n.delayMs ?? 0);
           const dur = Math.max(40, n.durationMs ?? 240);
+          const vel = n.velocity ?? 0.85;
           window.setTimeout(() => {
+            setPianoExternalActiveMidi((prev) => new Set(prev).add(n.midiNote));
+            window.setTimeout(() => {
+              setPianoExternalActiveMidi((prev) => {
+                const next = new Set(prev);
+                next.delete(n.midiNote);
+                return next;
+              });
+            }, dur);
             void soundEngine.playRecipeAtNote(recipe, n.midiNote, {
               durationMsOverride: dur,
-              velocity: n.velocity ?? 0.85,
+              velocity: vel,
             });
+            if (webMcpRef.current.isPianoRecording) {
+              setPianoRecordedNotes((prev) => [
+                ...prev,
+                {
+                  id: `note-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+                  midiNote: n.midiNote,
+                  startMs: Math.max(0, Math.round(delay)),
+                  durationMs: Math.round(dur),
+                  velocity: vel,
+                },
+              ]);
+            }
           }, delay);
           if (delay + dur > maxMs) maxMs = delay + dur;
         }
         return maxMs;
       },
     });
-    setWebMcpStatus(status);
+    setWebMcpStatus(registry.status);
+
+    if (!remoteSessionRef.current) {
+      remoteSessionRef.current = new RemoteAgentSession({
+        toolExecutor: registry,
+        onStatus: setRemoteStatus,
+        onActivity: (entry) =>
+          setRemoteActivities((prev) => [entry, ...prev].slice(0, 40)),
+      });
+    } else {
+      remoteSessionRef.current.setToolExecutor(registry);
+    }
+
+    return () => {
+      remoteSessionRef.current?.disable();
+    };
   }, []);
+
+  useEffect(() => {
+    remoteSessionRef.current?.notifyUserChange('studio_recipe_updated');
+  }, [draftRecipe]);
+
+  useEffect(() => {
+    remoteSessionRef.current?.notifyUserChange('daw_project_updated');
+  }, [dawProject]);
+
+  useEffect(() => {
+    remoteSessionRef.current?.notifyUserChange('ui_context_updated');
+  }, [activeView, isPianoOpen, pianoOctave, pianoRecordedNotes]);
+
+  const handleEnableRemote = useCallback(
+    async (customBrokerUrl?: string) => {
+      await soundEngine.unlock();
+      syncAudioState();
+      const id = await remoteSessionRef.current?.enable(customBrokerUrl);
+      if (id) {
+        showToast(`Remote AI Copilot enabled (${id})`);
+      }
+    },
+    [showToast, syncAudioState]
+  );
+
+  const handleDisableRemote = useCallback(() => {
+    remoteSessionRef.current?.disable();
+    showToast('Remote AI Copilot disabled');
+  }, [showToast]);
 
   const handleImportLibrary = async (file: File) => {
     try {
@@ -499,6 +666,19 @@ export default function App() {
         isPianoOpen={isPianoOpen}
         onTogglePiano={() => setIsPianoOpen((v) => !v)}
         onOpenWavImport={() => setIsWavModalOpen(true)}
+        remoteState={remoteStatus.state}
+        isRemotePopoverOpen={isRemotePopoverOpen}
+        onToggleRemotePopover={() => setIsRemotePopoverOpen((v) => !v)}
+      />
+
+      <RemoteAgentPopover
+        open={isRemotePopoverOpen}
+        status={remoteStatus}
+        activities={remoteActivities}
+        onClose={() => setIsRemotePopoverOpen(false)}
+        onEnable={handleEnableRemote}
+        onDisable={handleDisableRemote}
+        onOpenIntegrate={() => setActiveView('integrate')}
       />
 
       <main className="mx-auto w-full max-w-[1600px] flex-1 px-4 py-5 sm:px-6">
@@ -595,6 +775,8 @@ export default function App() {
             activeRecipe={draftRecipe}
             allSounds={allSounds}
             webMcpStatus={webMcpStatus}
+            remoteStatus={remoteStatus}
+            onOpenRemoteCopilot={() => setIsRemotePopoverOpen(true)}
           />
         )}
       </main>
@@ -610,8 +792,24 @@ export default function App() {
             : draftRecipe
         }
         canSendToDaw={dawProject.tracks.length > 0}
+        octave={pianoOctave}
+        onChangeOctave={setPianoOctave}
+        isRecording={isPianoRecording}
+        onToggleRecording={() => {
+          if (isPianoRecording) {
+            setIsPianoRecording(false);
+          } else {
+            setPianoRecordedNotes([]);
+            pianoRecStartRef.current = performance.now();
+            setIsPianoRecording(true);
+          }
+        }}
+        recordedNotes={pianoRecordedNotes}
+        onAddRecordedNote={(note) => setPianoRecordedNotes((prev) => [...prev, note])}
+        onClearRecordedNotes={() => setPianoRecordedNotes([])}
+        externalActiveMidi={pianoExternalActiveMidi}
         onClose={() => setIsPianoOpen(false)}
-        onSendToDawTrack={handleSendPianoNotesToDaw}
+        onSendToDawTrack={(notes) => void handleSendPianoNotesToDaw(notes)}
       />
 
       <WavImportModal

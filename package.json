@@ -3,11 +3,16 @@
   "private": true,
   "version": "2.1.0",
   "type": "module",
+  "bin": {
+    "sound-machine-mcp": "./mcp-server/index.mjs"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "mcp": "node mcp-server/index.mjs",
+    "mcp:cli": "node mcp-server/cli.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.475.0",

@@ -1,6 +1,7 @@
 import {
   AudioWaveform,
   BookOpen,
+  Bot,
   Download,
   ExternalLink,
   Grid,
@@ -9,6 +10,7 @@ import {
   Upload,
   Volume2,
 } from 'lucide-react';
+import type { RemoteAgentConnectionState } from '../engine/remoteAgent';
 
 export type AppView = 'studio' | 'daw' | 'integrate';
 
@@ -22,6 +24,9 @@ interface HeaderProps {
   isPianoOpen: boolean;
   onTogglePiano: () => void;
   onOpenWavImport: () => void;
+  remoteState: RemoteAgentConnectionState;
+  isRemotePopoverOpen: boolean;
+  onToggleRemotePopover: () => void;
 }
 
 export function Header({
@@ -34,8 +39,12 @@ export function Header({
   isPianoOpen,
   onTogglePiano,
   onOpenWavImport,
+  remoteState,
+  isRemotePopoverOpen,
+  onToggleRemotePopover,
 }: HeaderProps) {
   const isReady = audioState === 'running';
+  const isRemoteActive = remoteState !== 'off';
 
   return (
     <header className="sticky top-0 z-40 border-b border-[#334155] bg-[#0F172A]/95 backdrop-blur-md">
@@ -115,6 +124,37 @@ export function Header({
         </nav>
 
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={onToggleRemotePopover}
+            aria-expanded={isRemotePopoverOpen}
+            title="Enable Remote AI Copilot access via temporary Session ID"
+            className={`flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors duration-150 sm:text-sm ${
+              remoteState === 'connected'
+                ? 'border-[#22C55E] bg-[#22C55E]/20 text-[#22C55E]'
+                : isRemoteActive
+                  ? 'border-[#38BDF8]/60 bg-[#38BDF8]/15 text-[#7DD3FC]'
+                  : isRemotePopoverOpen
+                    ? 'border-[#22C55E]/60 bg-[#272F42] text-[#F8FAFC]'
+                    : 'border-[#475569] bg-[#1B2336] text-[#F8FAFC] hover:border-[#22C55E]/60'
+            }`}
+          >
+            <span
+              className={`size-2 rounded-full ${
+                remoteState === 'connected'
+                  ? 'bg-[#22C55E]'
+                  : remoteState === 'waiting' || remoteState === 'connecting'
+                    ? 'bg-[#38BDF8] animate-pulse'
+                    : remoteState === 'error'
+                      ? 'bg-[#EF4444]'
+                      : 'bg-[#64748B]'
+              }`}
+              aria-hidden="true"
+            />
+            <Bot size={15} aria-hidden="true" />
+            <span>AI Copilot</span>
+          </button>
+
           <button
             type="button"
             onClick={onTogglePiano}

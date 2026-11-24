@@ -6,10 +6,12 @@ import {
   ExternalLink,
   Hand,
   MousePointerClick,
+  Radio,
   Terminal,
 } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { soundEngine } from '../engine/audioEngine';
+import type { RemoteAgentStatus } from '../engine/remoteAgent';
 import type { SoundRecipe } from '../engine/types';
 import type { WebMCPStatus } from '../engine/webmcp';
 
@@ -17,14 +19,18 @@ interface IntegrationGuideProps {
   activeRecipe: SoundRecipe;
   allSounds: SoundRecipe[];
   webMcpStatus: WebMCPStatus | null;
+  remoteStatus: RemoteAgentStatus;
+  onOpenRemoteCopilot: () => void;
 }
 
-type SnippetTab = 'programmatic' | 'click' | 'swipe' | 'ai-agent';
+type SnippetTab = 'programmatic' | 'click' | 'swipe' | 'ai-agent' | 'remote-mcp';
 
 export function IntegrationGuide({
   activeRecipe,
   allSounds,
   webMcpStatus,
+  remoteStatus,
+  onOpenRemoteCopilot,
 }: IntegrationGuideProps) {
   const [activeTab, setActiveTab] = useState<SnippetTab>('programmatic');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -133,13 +139,34 @@ cardEl.addEventListener('pointerup', () => {
 // 3. .WAV-to-SoundLayers Decoder:
 //    "Call analyze_audio_to_layers with audioBase64 to convert an attached .wav SFX into a procedural SoundRecipe JSON."
 
-// Registered WebMCP Tools (17 total):
+// Registered WebMCP Tools (24 total):
+// Session: get_session_state, switch_view
 // Console: list_sound_presets, load_sound_preset, compose_sound, tune_sound_layer,
-//          play_current_sound, export_current_sound, save_current_sound
+//          add_sound_layer, remove_sound_layer, play_current_sound, export_current_sound, save_current_sound
 // DAW:     get_daw_project, configure_daw_project, add_daw_track, remove_daw_track,
-//          set_daw_track_steps, play_daw_project, stop_daw_project, export_daw_composition
-// Piano:   play_piano_notes
+//          update_daw_track, set_daw_track_steps, play_daw_project, stop_daw_project, export_daw_composition
+// Piano:   set_piano_drawer, piano_recording, play_piano_notes
 // Decoder: analyze_audio_to_layers`,
+    'remote-mcp': `// 1. Add to Claude Code, Cursor, Codex, or Antigravity MCP config:
+{
+  "mcpServers": {
+    "sound-machine": {
+      "command": "node",
+      "args": ["mcp-server/index.mjs"]
+    }
+  }
+}
+
+// 2. In Sound Machine header, click "AI Copilot" -> "Enable Access"
+//    and share the temporary Session ID (e.g. ${remoteStatus.sessionId ?? 'sm-a8f3k9m2'}) with your agent.
+
+// 3. Example prompt for your AI agent:
+//    "Connect to Sound Machine session ${remoteStatus.sessionId ?? 'sm-a8f3k9m2'}.
+//     Inspect get_session_state, add a warm FM bell layer to the current sound,
+//     open the piano drawer, play a C-major arpeggio, and record it into DAW Track 1."
+
+// 4. One-shot CLI usage:
+//    node mcp-server/cli.mjs ${remoteStatus.sessionId ?? 'sm-a8f3k9m2'} get_session_state`,
   };
 
   return (
@@ -237,6 +264,7 @@ cardEl.addEventListener('pointerup', () => {
                 { id: 'click', label: 'Click / Tap' },
                 { id: 'swipe', label: 'Swipe / Drag' },
                 { id: 'ai-agent', label: 'WebMCP Agent' },
+                { id: 'remote-mcp', label: 'Remote AI Copilot (MCP)' },
               ] as const
             ).map((tab) => (
               <button
@@ -273,6 +301,35 @@ cardEl.addEventListener('pointerup', () => {
         <pre className="overflow-x-auto bg-[#0F172A] p-4 font-display text-xs leading-relaxed text-[#E2E8F0]">
           <code>{snippets[activeTab]}</code>
         </pre>
+      </section>
+
+      {/* Remote AI Copilot Status */}
+      <section className="rounded-xl border border-[#334155] bg-[#1B2336] p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <Radio size={20} className="text-[#22C55E]" aria-hidden="true" />
+            <div>
+              <h3 className="font-display text-base font-semibold text-[#F8FAFC]">
+                Remote AI Copilot (External Harness Agents)
+              </h3>
+              <p className="text-xs text-[#94A3B8]">
+                Real-time MQTT-over-WebSocket bridge for Claude Code, Cursor, Codex, and Antigravity.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onOpenRemoteCopilot}
+            className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-[#22C55E]/50 bg-[#22C55E]/15 px-3 py-1.5 text-xs font-semibold text-[#22C55E] hover:bg-[#22C55E]/25"
+          >
+            <Radio size={13} aria-hidden="true" />
+            <span>
+              {remoteStatus.sessionId
+                ? `Session: ${remoteStatus.sessionId} (${remoteStatus.state})`
+                : 'Enable Remote Access'}
+            </span>
+          </button>
+        </div>
       </section>
 
       {/* WebMCP Status & Registered Tools */}
